@@ -1,7 +1,7 @@
 """Custom exception types, so error handling is consistent and each
 error carries the HTTP status code it should produce."""
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 
 class APIError(Exception):

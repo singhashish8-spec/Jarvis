@@ -10,12 +10,16 @@ This walks you through running Jarvis locally, start to finish, in about 30 minu
 
 ## Step 1: Create your API accounts (~15 minutes)
 
-You need three free accounts before Jarvis can do anything real. Phase 0 works
-without them (it uses example data), but you'll want them for Phase 1.
+You need three accounts before Jarvis can do anything real.
 
 **A. Replicate** (runs the AI models)
 1. Visit https://replicate.com and sign up
 2. Settings -> API tokens -> copy your key
+3. **Add billing**: https://replicate.com/account/billing — if your account
+   is an organization account, you'll need to actually **purchase credit**
+   there (a card on file alone isn't enough), or every agent call will fail
+   with a 402 "insufficient credit" error. $5-10 covers weeks of testing —
+   costs are typically a fraction of a rupee to a few rupees per call.
 
 **B. Supabase** (database)
 1. Visit https://supabase.com -> create a project (any region near you)
@@ -72,10 +76,11 @@ curl http://localhost:5000/status
 ```
 
 If `database`, `replicate`, and `storage` all say `"healthy"`, you're fully
-set up. If some say `"unavailable"`, that's fine for Phase 0 — it just
-means that credential isn't filled in correctly yet (see Troubleshooting).
+set up. If some say `"unavailable"`, a credential isn't filled in
+correctly yet (see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)).
 
-Finally, try the brainstorm endpoint:
+Finally, try the brainstorm endpoint — this makes a real Llama 3 70B
+call and costs a small amount:
 
 ```bash
 curl -X POST http://localhost:5000/api/agents/brainstorm \
@@ -83,8 +88,9 @@ curl -X POST http://localhost:5000/api/agents/brainstorm \
   -d '{"topic":"Design a mobile app for architects"}'
 ```
 
-You'll get back example ideas (Phase 0 uses mock data — no API cost). In
-Phase 1, this same endpoint starts calling the real Llama 70B model.
+You should get back real, model-generated ideas in a few seconds. The
+other four agents (Coder, Tester, Deployer, Document/QA) work the same
+way — see [AGENTS.md](AGENTS.md) for each one's endpoint and example.
 
 ## Step 5: Run the tests
 

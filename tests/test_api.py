@@ -1,4 +1,6 @@
-"""Tests for the Flask API endpoints."""
+"""Tests for the Flask API endpoints. All Replicate/DB/R2 calls are
+stubbed by the `client` fixture (see conftest.py), so these run
+offline and cost nothing."""
 
 import json
 
@@ -31,9 +33,8 @@ def test_brainstorm_endpoint(client, sample_brainstorm_input):
     )
     assert response.status_code == 200
     data = json.loads(response.data)
-    assert "task_id" in data
-    assert isinstance(data["ideas"], list)
-    assert len(data["ideas"]) > 0
+    assert data["task_id"]
+    assert data["output"] == "mocked model output"
 
 
 def test_brainstorm_missing_topic(client):
@@ -45,6 +46,68 @@ def test_brainstorm_missing_topic(client):
     assert response.status_code == 400
     data = json.loads(response.data)
     assert "error" in data
+
+
+def test_code_endpoint(client):
+    response = client.post(
+        "/api/agents/code",
+        data=json.dumps({"requirements": "a function that adds two numbers"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["task_id"]
+
+
+def test_code_missing_requirements(client):
+    response = client.post(
+        "/api/agents/code", data=json.dumps({}), content_type="application/json"
+    )
+    assert response.status_code == 400
+
+
+def test_test_endpoint(client):
+    response = client.post(
+        "/api/agents/test",
+        data=json.dumps({"code": "def add(a, b): return a + b"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["task_id"]
+
+
+def test_deploy_endpoint(client):
+    response = client.post(
+        "/api/agents/deploy",
+        data=json.dumps({"change_summary": "Add login page"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["task_id"]
+
+
+def test_document_endpoint(client):
+    response = client.post(
+        "/api/agents/document",
+        data=json.dumps({"subject": "How the login page works"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["task_id"]
+
+
+def test_qa_endpoint(client):
+    response = client.post(
+        "/api/agents/qa",
+        data=json.dumps({"code": "def add(a, b): return a + b"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["task_id"]
 
 
 def test_not_found(client):

@@ -1,39 +1,121 @@
-"""Tests for the BrainstormAgent directly (no HTTP layer)."""
+"""Tests for each agent directly (no HTTP layer), with Replicate calls
+mocked so these run offline and don't cost anything."""
+
+from unittest.mock import MagicMock
 
 from src.agents.brainstorm_agent import BrainstormAgent
+from src.agents.coder_agent import CoderAgent
+from src.agents.deployer_agent import DeployerAgent
+from src.agents.document_agent import DocumentAgent
+from src.agents.qa_agent import QAAgent
+from src.agents.tester_agent import TesterAgent
 
 
 def test_brainstorm_agent_initialization():
     agent = BrainstormAgent()
     assert agent.agent_type == "brainstorm"
-    assert agent.model_name == "llama-70b"
+    assert agent.model_name == "llama-3-70b"
 
 
-def test_brainstorm_basic(sample_brainstorm_input):
+def test_brainstorm_basic(monkeypatch, sample_brainstorm_input):
     agent = BrainstormAgent()
-    result = agent.brainstorm(**sample_brainstorm_input)
-
-    assert "ideas" in result
-    assert len(result["ideas"]) > 0
-    assert "reasoning" in result
-    assert "task_id" in result
-
-
-def test_brainstorm_with_context():
-    agent = BrainstormAgent()
-    result = agent.brainstorm(
-        topic="Design a mobile app",
-        context="For architects, non-technical users",
-        style="concise",
+    monkeypatch.setattr(
+        agent.replicate_client, "run", MagicMock(return_value="idea one, idea two")
     )
 
-    assert result is not None
-    assert "ideas" in result
+    result = agent.brainstorm(**sample_brainstorm_input)
+
+    assert result["output"] == "idea one, idea two"
+    assert result["task_id"]
 
 
-def test_brainstorm_defaults_context_and_style():
+def test_brainstorm_defaults_context_and_style(monkeypatch):
     agent = BrainstormAgent()
+    monkeypatch.setattr(agent.replicate_client, "run", MagicMock(return_value="ideas"))
+
     result = agent.brainstorm(topic="Design a mobile app")
 
     assert result["task_id"]
-    assert result["ideas"]
+    assert result["output"]
+
+
+def test_brainstorm_propagates_replicate_errors(monkeypatch):
+    agent = BrainstormAgent()
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(side_effect=RuntimeError("model failed")),
+    )
+
+    try:
+        agent.brainstorm(topic="test")
+        assert False, "expected RuntimeError to propagate"
+    except RuntimeError:
+        assert agent.current_task["status"] == "failed"
+
+
+def test_coder_agent_generates_code(monkeypatch):
+    agent = CoderAgent()
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(return_value="def add(a, b):\n    return a + b"),
+    )
+
+    result = agent.generate_code(requirements="add two numbers", tech_stack="Python")
+
+    assert "def add" in result["output"]
+    assert result["tech_stack"] == "Python"
+    assert result["task_id"]
+
+
+def test_tester_agent_writes_tests(monkeypatch):
+    agent = TesterAgent()
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(return_value="def test_add(): assert add(1, 2) == 3"),
+    )
+
+    result = agent.write_tests(code="def add(a, b): return a + b", framework="pytest")
+
+    assert "test_add" in result["output"]
+    assert result["framework"] == "pytest"
+
+
+def test_deployer_agent_plans_deployment(monkeypatch):
+    agent = DeployerAgent()
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(return_value="1. Run tests\n2. Deploy\n3. Verify"),
+    )
+
+    result = agent.plan_deployment(change_summary="Add login page", target="Vercel")
+
+    assert result["output"]
+    assert result["target"] == "Vercel"
+
+
+def test_document_agent_writes_docs(monkeypatch):
+    agent = DocumentAgent()
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(return_value="# Login Page\nDocs here."),
+    )
+
+    result = agent.write_docs(subject="Login page")
+
+    assert "Login Page" in result["output"]
+
+
+def test_qa_agent_reviews_code(monkeypatch):
+    agent = QAAgent()
+    monkeypatch.setattr(
+        agent.replicate_client, "run", MagicMock(return_value="No issues found.")
+    )
+
+    result = agent.review_code(code="def add(a, b): return a + b")
+
+    assert result["output"]

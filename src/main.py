@@ -1,13 +1,14 @@
 """JARVIS API — Flask application entry point.
 
 This is the front door: every request comes in here and gets routed
-to the right agent. Phase 0 wires up the Brainstorm agent with a
-health/status pair of endpoints; Phase 1 adds Coder/Tester/Deployer.
+to the right agent. Five agents are wired up: Brainstorm, Coder,
+Tester, Deployer, and Document/QA — each calling a real model on
+Replicate (see docs/AGENTS.md for which model and why).
 """
 
-import logging
 import os
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -15,7 +16,13 @@ from flask_cors import CORS
 
 load_dotenv()
 
+from src.agents.base_agent import BaseAgent  # noqa: E402
 from src.agents.brainstorm_agent import BrainstormAgent  # noqa: E402
+from src.agents.coder_agent import CoderAgent  # noqa: E402
+from src.agents.deployer_agent import DeployerAgent  # noqa: E402
+from src.agents.document_agent import DocumentAgent  # noqa: E402
+from src.agents.qa_agent import QAAgent  # noqa: E402
+from src.agents.tester_agent import TesterAgent  # noqa: E402
 from src.config import config  # noqa: E402
 from src.database.client import DatabaseClient  # noqa: E402
 from src.storage.r2_client import R2Client  # noqa: E402
@@ -33,6 +40,11 @@ try:
     db_client = DatabaseClient()
     r2_client = R2Client()
     brainstorm_agent = BrainstormAgent()
+    coder_agent = CoderAgent()
+    tester_agent = TesterAgent()
+    deployer_agent = DeployerAgent()
+    document_agent = DocumentAgent()
+    qa_agent = QAAgent()
     logger.info("All clients initialized successfully")
 except Exception as exc:
     logger.error("Failed to initialize clients: %s", exc)
@@ -96,65 +108,101 @@ def status_check():
 # ============================================
 
 
-@app.route("/api/agents/brainstorm", methods=["POST"])
-def brainstorm():
-    """Generate ideas for a topic.
+def _run_agent(
+    agent: BaseAgent, agent_type: str, data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Shared request-handling logic for every agent endpoint: call the
+    agent, persist the result best-effort, and shape the response.
 
-    Request body:
-        {"topic": "...", "context": "...", "style": "detailed"}
+    Every agent implements `process(**kwargs)`, so the JSON body's keys
+    are passed straight through as that agent's arguments.
     """
+    result = agent.process(**data)
+    task_id = result.get("task_id")
+
+    # Persistence is best-effort: a working result should still reach
+    # the caller even if the DB/storage backends are briefly unavailable.
     try:
-        data = request.get_json(silent=True)
-        if not data or "topic" not in data:
-            raise APIError("Missing required field: 'topic'", 400)
-
-        logger.info("Brainstorm request received: %s", data["topic"])
-
-        result = brainstorm_agent.brainstorm(
-            topic=data.get("topic"),
-            context=data.get("context", ""),
-            style=data.get("style", "detailed"),
+        db_client.save_task(
+            agent_type=agent_type,
+            input_data=data,
+            output_data=result,
+            status="completed",
+            task_id=task_id,
         )
-
-        task_id = result.get("task_id")
-
-        # Persistence is best-effort: a working brainstorm result should
-        # still reach the caller even if the DB/storage backends are
-        # briefly unavailable.
-        try:
-            db_client.save_task(
-                agent_type="brainstorm",
-                input_data=data,
-                output_data=result,
-                status="completed",
-                task_id=task_id,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to persist task to database: %s", exc)
-
-        try:
-            r2_client.save_task_output(task_id, result)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to back up task output to R2: %s", exc)
-
-        response = {
-            "task_id": task_id,
-            "ideas": result.get("ideas", []),
-            "reasoning": result.get("reasoning", ""),
-            "status": "completed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-        logger.info("Brainstorm completed: %s", task_id)
-        return jsonify(response), 200
-
-    except APIError as exc:
-        body, code = handle_error(exc)
-        return jsonify(body), code
     except Exception as exc:  # noqa: BLE001
-        logger.error("Unexpected error in /api/agents/brainstorm: %s", exc)
-        body, code = handle_error(APIError("Internal server error", 500))
-        return jsonify(body), code
+        logger.error("Failed to persist task to database: %s", exc)
+
+    try:
+        r2_client.save_task_output(task_id, result)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to back up task output to R2: %s", exc)
+
+    return {
+        "task_id": task_id,
+        "output": result.get("output", ""),
+        "status": "completed",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _make_agent_route(agent: BaseAgent, agent_type: str, required_field: str):
+    """Build a Flask view function for a simple `{field: ...}` -> agent
+    endpoint, so each route below doesn't repeat the same boilerplate."""
+
+    def view():
+        try:
+            data = request.get_json(silent=True)
+            if not data or required_field not in data:
+                raise APIError(f"Missing required field: '{required_field}'", 400)
+
+            logger.info("%s request received", agent_type)
+            response = _run_agent(agent, agent_type, data)
+            logger.info("%s completed: %s", agent_type, response["task_id"])
+            return jsonify(response), 200
+
+        except APIError as exc:
+            body, code = handle_error(exc)
+            return jsonify(body), code
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Unexpected error in %s endpoint: %s", agent_type, exc)
+            body, code = handle_error(APIError("Internal server error", 500))
+            return jsonify(body), code
+
+    view.__name__ = f"{agent_type}_endpoint"
+    return view
+
+
+app.add_url_rule(
+    "/api/agents/brainstorm",
+    view_func=_make_agent_route(brainstorm_agent, "brainstorm", "topic"),
+    methods=["POST"],
+)
+app.add_url_rule(
+    "/api/agents/code",
+    view_func=_make_agent_route(coder_agent, "coder", "requirements"),
+    methods=["POST"],
+)
+app.add_url_rule(
+    "/api/agents/test",
+    view_func=_make_agent_route(tester_agent, "tester", "code"),
+    methods=["POST"],
+)
+app.add_url_rule(
+    "/api/agents/deploy",
+    view_func=_make_agent_route(deployer_agent, "deployer", "change_summary"),
+    methods=["POST"],
+)
+app.add_url_rule(
+    "/api/agents/document",
+    view_func=_make_agent_route(document_agent, "document", "subject"),
+    methods=["POST"],
+)
+app.add_url_rule(
+    "/api/agents/qa",
+    view_func=_make_agent_route(qa_agent, "qa", "code"),
+    methods=["POST"],
+)
 
 
 # ============================================

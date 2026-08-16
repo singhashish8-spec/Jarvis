@@ -2,8 +2,9 @@
 
 Tests run fully offline: placeholder-but-valid credentials let the
 Supabase/boto3 clients construct without error, and the `client`
-fixture stubs out the actual network calls (health checks, saves) so
-CI doesn't depend on real external services.
+fixture stubs out every external network call (Supabase, R2, and every
+agent's Replicate call) so CI never depends on — or pays for — real
+external services.
 """
 
 import os
@@ -25,19 +26,43 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-flask-sessions")
 
 import pytest  # noqa: E402
 
-from src.main import app, brainstorm_agent, db_client, r2_client  # noqa: E402
+from src.main import (  # noqa: E402
+    app,
+    brainstorm_agent,
+    coder_agent,
+    db_client,
+    deployer_agent,
+    document_agent,
+    qa_agent,
+    r2_client,
+    tester_agent,
+)
+
+ALL_AGENTS = [
+    brainstorm_agent,
+    coder_agent,
+    tester_agent,
+    deployer_agent,
+    document_agent,
+    qa_agent,
+]
 
 
 @pytest.fixture
 def client(monkeypatch):
-    """Flask test client with external health/persistence calls stubbed."""
+    """Flask test client with every external call stubbed."""
     app.config["TESTING"] = True
 
     monkeypatch.setattr(db_client, "health_check", lambda: True)
     monkeypatch.setattr(r2_client, "health_check", lambda: True)
-    monkeypatch.setattr(brainstorm_agent, "verify_api_key", lambda: True)
     monkeypatch.setattr(db_client, "save_task", lambda **kwargs: "test-task-id")
     monkeypatch.setattr(r2_client, "save_task_output", lambda *args, **kwargs: True)
+
+    for agent in ALL_AGENTS:
+        monkeypatch.setattr(agent, "verify_api_key", lambda: True)
+        monkeypatch.setattr(
+            agent.replicate_client, "run", lambda *a, **kw: "mocked model output"
+        )
 
     with app.test_client() as test_client:
         yield test_client

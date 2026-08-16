@@ -6,16 +6,17 @@
 
 ## What is Jarvis?
 
-Jarvis is a team of AI agents that work together on your behalf:
+Jarvis is a team of AI agents that work together on your behalf — all five below are **live**, calling real models on Replicate:
 
-- **Brainstorm Agent** — ideas and strategy *(Phase 0: skeleton, live now)*
-- **Coder Agent** — writes code *(Phase 1)*
-- **Test Agent** — finds bugs *(Phase 1)*
-- **Deployer Agent** — pushes to production *(Phase 1)*
+- **Brainstorm Agent** — ideas and strategy (Llama 3 70B)
+- **Coder Agent** — writes code (DeepSeek-Coder 33B)
+- **Tester Agent** — writes tests that catch real bugs (Llama 3 70B)
+- **Deployer Agent** — drafts deployment plans (Mistral 7B)
+- **Document / QA Agents** — writes docs, reviews code (Llama 3 70B / DeepSeek-Coder 33B)
 
 You give them a task, they execute, you review. Think of yourself as the architect: Jarvis is your team of contractors.
 
-This repo is **Phase 0** — the foundation. It's a working skeleton: a real Flask API, a real (mocked-for-now) Brainstorm agent, a real database and storage layer, tests, and CI. Phase 1 replaces the mock data with real AI calls.
+This repo has a working Flask API, a real database and storage layer, tests, and CI — plus five working agents making real AI calls. See [docs/AGENTS.md](docs/AGENTS.md) for exactly which model each one uses and why.
 
 Full plan: see [ROADMAP.md](ROADMAP.md).
 
@@ -44,15 +45,15 @@ Full walkthrough (including creating your Replicate/Supabase/R2 accounts): [docs
 
 ## Project Status
 
-**Phase 0 (this repo, now)**
-- Flask API with health/status/brainstorm endpoints
+**Live now**
+- Flask API with health/status + 5 agent endpoints
 - Supabase database wrapper, Cloudflare R2 storage wrapper
-- Brainstorm agent (returns example data — no API cost yet)
-- Tests, CI (GitHub Actions), one-command setup
+- Brainstorm, Coder, Tester, Deployer, Document, and QA agents — all calling real Replicate models
+- Tests (offline, mocked), CI (GitHub Actions), one-command setup
 
-**Phase 1 (next, ~3 months)** — Brainstorm agent calls real Llama 70B via Replicate, Coder + Test agents added, dashboard.
+**Next (Phase 1 remainder)** — a dashboard so you're not stuck using curl, and Google Antigravity integration.
 
-**Phase 2+** — more agents, fine-tuning, optional home-server migration (cost drops ~93%).
+**Phase 2+** — fine-tuning, optional home-server migration (cost drops ~93%).
 
 See [ROADMAP.md](ROADMAP.md) for the full 12-month plan and cost breakdown.
 
@@ -64,8 +65,9 @@ See [ROADMAP.md](ROADMAP.md) for the full 12-month plan and cost breakdown.
 Your request
     -> Jarvis API (Flask)
     -> Agent Router
-         - Brainstorm Agent (Llama 70B, via Replicate)
-         - [Phase 1+] Coder / Test / Deploy agents
+         - Brainstorm / Tester / Document Agent (Llama 3 70B)
+         - Coder / QA Agent (DeepSeek-Coder 33B)
+         - Deployer Agent (Mistral 7B)
     -> Result saved to Supabase (database) + R2 (backup)
     -> Returned to you
 ```

@@ -29,8 +29,28 @@ malformed URL or an invalid key). Run `make verify` for a clearer,
 per-service error message than `/status` gives.
 
 **`/status` shows `"replicate": "unavailable"`**
-`REPLICATE_API_KEY` isn't set in `.env`. This only matters starting Phase 1
-— Phase 0's brainstorm endpoint works fine without it.
+`REPLICATE_API_KEY` isn't set in `.env`.
+
+**An agent endpoint returns 402 "Insufficient credit"**
+Your Replicate account needs credit added before it'll run any model —
+see https://replicate.com/account/billing#billing. If your account is an
+**organization** account, adding a card isn't enough by itself; you need
+to explicitly **purchase credit** there. Wait a few minutes after
+purchasing before retrying.
+
+**An agent endpoint is slow (60-90+ seconds) on its first call**
+Expected for the community-hosted models (Coder/QA's DeepSeek-Coder,
+Deployer's Mistral) — they spin down after a couple of minutes idle and
+cold-start on the next request. Llama 3 70B (Brainstorm/Tester/Document)
+doesn't have this issue. Subsequent calls within a minute or two are fast.
+
+**An agent endpoint returns 404 from Replicate**
+If you've changed a `MODEL_VERSION` constant in one of the `src/agents/*.py`
+files: community models require an exact version id, and that id changes
+whenever the model's owner pushes a new version. Look up the current one
+with the `latest_version` field at
+`https://api.replicate.com/v1/models/<owner>/<name>` (needs your API key
+in the `Authorization: Bearer` header) and update the constant.
 
 ## Tests
 
