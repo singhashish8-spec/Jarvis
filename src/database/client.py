@@ -43,8 +43,14 @@ class DatabaseClient:
         output_data: Optional[Dict[str, Any]] = None,
         status: str = "completed",
         cost: float = 0.0,
+        task_id: Optional[str] = None,
     ) -> Optional[str]:
-        """Insert a task execution record. Returns the new task's id."""
+        """Insert a task execution record. Returns the new task's id.
+
+        Pass `task_id` when the caller already has an id it wants this row
+        to use (e.g. the id an agent generated in memory) — otherwise the
+        two ids drift apart and `get_task()` can never find the row again.
+        """
         try:
             data = {
                 "agent_type": agent_type,
@@ -54,6 +60,8 @@ class DatabaseClient:
                 "cost": cost,
                 "cost_currency": "INR",
             }
+            if task_id:
+                data["id"] = task_id
             result = self.client.table("tasks").insert(data).execute()
             task_id = result.data[0]["id"] if result.data else None
             logger.info("Task saved: %s", task_id)

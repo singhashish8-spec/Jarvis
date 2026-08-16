@@ -127,6 +127,7 @@ def brainstorm():
                 input_data=data,
                 output_data=result,
                 status="completed",
+                task_id=task_id,
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to persist task to database: %s", exc)
