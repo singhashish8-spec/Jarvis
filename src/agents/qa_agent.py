@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from src.agents.base_agent import BaseAgent
 from src.agents.replicate_client import ReplicateClient
+from src.settings import resolve_model_and_version
 
 logger = logging.getLogger(__name__)
 
@@ -33,19 +34,24 @@ class QAAgent(BaseAgent):
         logger.info("Reviewing code%s", f" ({context})" if context else "")
 
         try:
-            prompt = self._build_prompt(code, context)
+            prompt = self.resolve_prompt(
+                self._build_prompt(code, context), {"code": code, "context": context}
+            )
+            model, version = resolve_model_and_version(
+                self.settings, MODEL, MODEL_VERSION
+            )
             run_result = self.replicate_client.run(
-                MODEL,
+                model,
                 {
                     "prompt": prompt,
                     "system_prompt": (
                         "You are a meticulous senior code reviewer. "
                         "Always respond in English."
                     ),
-                    "max_new_tokens": 1024,
-                    "temperature": 0.2,
+                    "max_new_tokens": self.max_tokens_or(1024),
+                    "temperature": self.temperature_or(0.2),
                 },
-                version=MODEL_VERSION,
+                version=version,
             )
             result = {
                 "task_id": task_id,

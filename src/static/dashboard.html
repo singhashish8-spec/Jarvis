@@ -346,6 +346,7 @@
   }
 
   .msg { display: flex; gap: 12px; margin-bottom: 22px; }
+  body.compact-mode .msg { margin-bottom: 10px; }
   .msg.user { justify-content: flex-end; }
   .msg.user .bubble {
     background: var(--bubble-user);
@@ -626,6 +627,310 @@
   .modal-cancel:hover { background: #2a2a2a; }
   .modal-empty { color: var(--text-dimmer); font-size: 13px; padding: 6px 0; }
 
+  /* ---------- Settings ---------- */
+  .settings-trigger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 4px;
+    margin-top: 4px;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .settings-trigger:hover { color: var(--text); }
+
+  .settings-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 55;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .settings-backdrop.show { display: flex; }
+  .settings-modal {
+    background: #212121;
+    border: 1px solid var(--border-soft);
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (min-width: 860px) {
+    .settings-backdrop { padding: 30px; }
+    .settings-modal {
+      width: 100%;
+      max-width: 860px;
+      height: 100%;
+      max-height: 640px;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+  }
+  .settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-soft);
+    flex-shrink: 0;
+  }
+  .settings-header h2 { margin: 0; font-size: 16px; }
+  .settings-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+  .settings-close:hover { background: #2a2a2a; color: var(--text); }
+  .settings-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+  @media (min-width: 640px) {
+    .settings-body { flex-direction: row; }
+  }
+  .settings-nav {
+    flex-shrink: 0;
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-soft);
+    padding: 6px;
+    gap: 2px;
+  }
+  @media (min-width: 640px) {
+    .settings-nav {
+      flex-direction: column;
+      width: 190px;
+      overflow-x: visible;
+      overflow-y: auto;
+      border-bottom: none;
+      border-right: 1px solid var(--border-soft);
+      padding: 10px 8px;
+    }
+  }
+  .settings-nav-item {
+    flex-shrink: 0;
+    text-align: left;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .settings-nav-item:hover { background: #2a2a2a; color: var(--text); }
+  .settings-nav-item.active { background: #2f2f2f; color: var(--text); font-weight: 600; }
+  .settings-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 20px 30px;
+  }
+  .settings-content h3 {
+    margin: 0 0 14px;
+    font-size: 15px;
+  }
+  .settings-field {
+    margin-bottom: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .settings-field:last-child { border-bottom: none; }
+  .settings-field-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .info-btn {
+    flex-shrink: 0;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--text-dimmer);
+    background: none;
+    color: var(--text-dimmer);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .info-btn:hover, .info-btn.active { border-color: var(--text-dim); color: var(--text); }
+  .token-cost-flag {
+    font-size: 10px;
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+  .info-note {
+    display: none;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-dim);
+    background: #262626;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .info-note.show { display: block; }
+  .settings-input, .settings-select, .settings-textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 8px 10px;
+  }
+  .settings-textarea { min-height: 80px; resize: vertical; }
+  .settings-input:focus, .settings-select:focus, .settings-textarea:focus { outline: 1px solid var(--text-dim); }
+  .settings-hint { font-size: 11px; color: var(--text-dimmer); margin-top: 5px; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .settings-btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    background: #2a2a2a;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .settings-btn:hover { background: #333; }
+  .settings-btn.primary { background: #ffffff; color: #0b0d12; border-color: transparent; }
+  .settings-btn.primary:hover { background: #e5e5e5; }
+  .settings-btn.danger { color: var(--error); border-color: rgba(248,113,113,0.4); }
+  .settings-btn.danger:hover { background: rgba(248,113,113,0.1); }
+  .settings-btn:disabled { opacity: 0.5; cursor: default; }
+  .settings-save-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+  .agent-config-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .agent-config-table th, .agent-config-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border-soft); }
+  .agent-config-table th { color: var(--text-dimmer); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+  .agent-config-table input[type="number"] { width: 64px; }
+  .agent-config-table select { max-width: 110px; }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 13px;
+  }
+  .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .status-badge.healthy { background: rgba(74,222,128,0.15); color: var(--ok); }
+  .status-badge.unavailable { background: rgba(248,113,113,0.15); color: var(--error); }
+
+  .connector-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    opacity: 0.7;
+  }
+  .connector-card .icon { font-size: 20px; }
+  .connector-card .name { font-size: 13px; font-weight: 600; }
+  .connector-card .desc { font-size: 11px; color: var(--text-dimmer); margin-top: 2px; }
+  .connector-badge {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-dimmer);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .skill-item {
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .skill-item-header { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .skill-item-header .name { font-weight: 600; flex: 1; }
+  .skill-item-header .version { color: var(--text-dimmer); font-size: 11px; }
+  .skill-active-badge {
+    font-size: 10px;
+    color: var(--ok);
+    border: 1px solid var(--ok);
+    border-radius: 10px;
+    padding: 1px 6px;
+  }
+  .skill-desc { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .skill-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .skill-actions button {
+    background: none;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .skill-actions button:hover { color: var(--text); background: #2a2a2a; }
+  .skill-vars-hint {
+    font-size: 11px;
+    color: var(--text-dimmer);
+    background: #262626;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+  }
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 12px;
+  }
+  .task-row .task-meta { flex: 1; min-width: 0; }
+  .task-row .task-agent { color: var(--text); font-weight: 600; }
+  .task-row .task-time { color: var(--text-dimmer); }
+  .task-row .task-summary { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-delete-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-dimmer);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+  }
+  .task-delete-btn:hover { color: var(--error); }
+
   .toast {
     position: fixed;
     bottom: 90px;
@@ -694,6 +999,7 @@
       <span><span class="dot" id="dot-replicate"></span>Replicate</span>
       <span><span class="dot" id="dot-storage"></span>Storage</span>
     </div>
+    <button class="settings-trigger" id="settings-trigger">⚙ Settings</button>
   </aside>
 
   <div class="main">
@@ -719,6 +1025,19 @@
         <button class="send-btn" id="composer-send" disabled>↑</button>
       </div>
       <div class="composer-hint">Jarvis calls real AI models — replies can take a few seconds to ~90s.</div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-backdrop" id="settings-backdrop">
+  <div class="settings-modal" id="settings-modal">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="settings-close" id="settings-close" title="Close">×</button>
+    </div>
+    <div class="settings-body">
+      <nav class="settings-nav" id="settings-nav"></nav>
+      <div class="settings-content" id="settings-content"></div>
     </div>
   </div>
 </div>
@@ -1488,6 +1807,811 @@ document.getElementById("push-cancel").addEventListener("click", closePushModal)
 document.getElementById("push-backdrop").addEventListener("click", (e) => {
   if (e.target.id === "push-backdrop") closePushModal();
 });
+
+// ============================================================
+// SETTINGS
+// ============================================================
+
+const AGENT_TEMPLATE_VARS = {
+  brainstorm: ["topic", "context", "style"],
+  coder: ["requirements", "tech_stack", "style", "context"],
+  tester: ["code", "description", "framework"],
+  deployer: ["change_summary", "target", "context"],
+  document: ["subject", "content", "doc_type"],
+  qa: ["code", "context"],
+};
+
+const CONNECTORS = [
+  {
+    icon: "📁", name: "Google Drive", badge: "Coming soon",
+    desc: "Pull a doc/sheet in as context instead of pasting it.",
+    note: "Not built yet. This would be a cloud-to-cloud OAuth connector — Jarvis's server " +
+      "talking directly to Google's API, no local software needed. Pulling a file in costs " +
+      "nothing by itself; only once its contents get stuffed into a prompt do they count as " +
+      "input tokens on that request.",
+  },
+  {
+    icon: "💬", name: "Slack", badge: "Coming soon",
+    desc: "Post results to a channel, or pull thread context in.",
+    note: "Not built yet. Same shape as Drive — a cloud-to-cloud OAuth connector, no local " +
+      "bridge required. Posting a message costs nothing; it happens after a real Replicate " +
+      "call already finished, the same way Webhooks does.",
+  },
+  {
+    icon: "🐙", name: "GitHub", badge: "Coming soon",
+    desc: "Let Coder/QA read real files from a repo instead of pasted code.",
+    note: "Not built yet. Cloud-to-cloud via GitHub's API. Reading a file is free; feeding a " +
+      "large file into Coder or QA's prompt afterward adds input tokens the same way pasting " +
+      "it by hand would.",
+  },
+  {
+    icon: "🖥️", name: "PyRevit / Local PC & Home Server", badge: "Needs local bridge app",
+    desc: "Pull live Revit model data into Brainstorm, Coder, or Document.",
+    note: "Placeholder only — this is the one that's genuinely different from the others. " +
+      "Jarvis runs on Vercel, which has no way to reach your PC directly, and PyRevit is " +
+      "local desktop software with no cloud API of its own. Making this real needs either a " +
+      "small bridge/onboard app running on your machine that Jarvis's cloud side can talk to, " +
+      "or running Jarvis itself locally on your laptop/home server once you've procured your " +
+      "own hardware (see ROADMAP.md, Phase 3). Revisit this after that migration.",
+  },
+];
+
+let settingsState = {
+  categories: [],
+  settings: [],
+  activeCategory: "usage_billing",
+  activeSkillAgent: "brainstorm",
+};
+
+function tokenEstimate(text) {
+  return Math.ceil((text || "").length / 4);
+}
+
+function fieldsFor(categoryId) {
+  return settingsState.settings.filter((s) => s.category === categoryId);
+}
+
+async function openSettings() {
+  document.getElementById("settings-backdrop").classList.add("show");
+  if (!settingsState.settings.length) {
+    await loadSettingsSchema();
+  }
+  renderSettingsNav();
+  selectSettingsCategory(settingsState.activeCategory);
+}
+
+function closeSettings() {
+  document.getElementById("settings-backdrop").classList.remove("show");
+}
+
+async function loadSettingsSchema() {
+  try {
+    const res = await fetch("/api/settings");
+    const body = await res.json();
+    settingsState.categories = body.categories || [];
+    settingsState.settings = body.settings || [];
+  } catch (err) {
+    showToast("Couldn't load settings.");
+  }
+}
+
+function renderSettingsNav() {
+  const nav = document.getElementById("settings-nav");
+  nav.innerHTML = "";
+  settingsState.categories.forEach((cat) => {
+    const btn = document.createElement("button");
+    btn.className = "settings-nav-item" + (cat.id === settingsState.activeCategory ? " active" : "");
+    btn.textContent = cat.label;
+    btn.addEventListener("click", () => selectSettingsCategory(cat.id));
+    nav.appendChild(btn);
+  });
+}
+
+const SETTINGS_RENDERERS = {
+  usage_billing: renderUsageBillingCategory,
+  agent_defaults: renderAgentDefaultsCategory,
+  data_controls: renderDataControlsCategory,
+  appearance: renderAppearanceCategory,
+  system_status: renderSystemStatusCategory,
+  skills: renderSkillsCategory,
+  connectors: renderConnectorsCategory,
+  personalization: renderPersonalizationCategory,
+  rate_limiting: renderRateLimitingCategory,
+  webhooks: renderWebhooksCategory,
+  danger_zone: renderDangerZoneCategory,
+};
+
+function selectSettingsCategory(id) {
+  settingsState.activeCategory = id;
+  renderSettingsNav();
+  const content = document.getElementById("settings-content");
+  content.innerHTML = "";
+  (SETTINGS_RENDERERS[id] || (() => {}))(content);
+}
+
+// ---- generic scalar-field rendering (shared by most categories) ----
+
+function renderGenericField(entry) {
+  const inputId = "field-" + entry.key;
+  const value = entry.value === null || entry.value === undefined ? "" : entry.value;
+  let inputHtml;
+
+  if (entry.type === "textarea") {
+    inputHtml =
+      `<textarea class="settings-textarea" id="${inputId}" ${entry.max_length ? `maxlength="${entry.max_length}"` : ""}>` +
+      escapeHtml(String(value)) + `</textarea>`;
+  } else if (entry.type === "select") {
+    const opts = entry.options.map((o) => {
+      const label = entry.key === "default_agent" ? (agentById(o) || {}).label || o : o;
+      return `<option value="${o}" ${o === value ? "selected" : ""}>${label}</option>`;
+    }).join("");
+    inputHtml = `<select class="settings-select" id="${inputId}">${opts}</select>`;
+  } else {
+    inputHtml =
+      `<input class="settings-input" id="${inputId}" type="${entry.type === "number" ? "number" : "text"}" ` +
+      `value="${escapeHtml(String(value))}" ` +
+      (entry.min !== undefined ? `min="${entry.min}" ` : "") +
+      (entry.max !== undefined ? `max="${entry.max}" ` : "") +
+      (entry.step !== undefined ? `step="${entry.step}" ` : (entry.type === "number" ? `step="any" ` : "")) +
+      (entry.unit ? `placeholder="${entry.unit}"` : "") + `>`;
+  }
+
+  return `
+    <div class="settings-field" data-key="${entry.key}">
+      <div class="settings-field-label">
+        <span>${entry.label}</span>
+        <button class="info-btn">i</button>
+        ${entry.costs_tokens ? '<span class="token-cost-flag">uses tokens</span>' : ""}
+      </div>
+      <div class="info-note" id="note-${entry.key}">${escapeHtml(entry.note)}</div>
+      ${inputHtml}
+      ${entry.key === "custom_instructions" ? `<div class="settings-hint" id="token-estimate-hint"></div>` : ""}
+      <div class="settings-save-row">
+        <button class="settings-btn primary settings-save-btn">Save</button>
+      </div>
+    </div>
+  `;
+}
+
+function wireGenericField(container, entry) {
+  const field = container.querySelector(`.settings-field[data-key="${entry.key}"]`);
+  if (!field) return;
+  field.querySelector(".info-btn").addEventListener("click", () => toggleInfoNote(entry.key));
+  field.querySelector(".settings-save-btn").addEventListener("click", () => saveGenericField(entry.key));
+
+  if (entry.key === "custom_instructions") {
+    const textarea = field.querySelector("textarea");
+    const hint = field.querySelector("#token-estimate-hint");
+    const update = () => {
+      hint.textContent = `~${tokenEstimate(textarea.value)} tokens added to every future request, on every agent.`;
+    };
+    textarea.addEventListener("input", update);
+    update();
+  }
+}
+
+function toggleInfoNote(key) {
+  const note = document.getElementById("note-" + key);
+  if (note) note.classList.toggle("show");
+}
+
+async function saveGenericField(key) {
+  const input = document.getElementById("field-" + key);
+  let raw = input.value;
+  if (raw === "") raw = null;
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: raw }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.message || "Couldn't save.");
+      return;
+    }
+    showToast("Saved.");
+    const entry = settingsState.settings.find((s) => s.key === key);
+    if (entry) {
+      entry.value = raw === null ? entry.default : (entry.type === "number" ? parseFloat(raw) : raw);
+    }
+    if (["credit_limit_usd", "gpu_rate_per_second_usd", "budget_alert_threshold_pct"].includes(key)) {
+      loadUsage();
+    }
+  } catch (err) {
+    showToast("Network error — couldn't save.");
+  }
+}
+
+// ---- Usage & Billing ----
+
+function renderUsageBillingCategory(content) {
+  const fields = fieldsFor("usage_billing");
+  content.innerHTML = `
+    <h3>Usage & Billing</h3>
+    <div id="usage-billing-live" class="settings-field"><div class="settings-hint">Loading current usage…</div></div>
+    ${fields.map(renderGenericField).join("")}
+  `;
+  fields.forEach((f) => wireGenericField(content, f));
+  loadUsageBillingLive();
+}
+
+async function loadUsageBillingLive() {
+  const el = document.getElementById("usage-billing-live");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/usage");
+    const body = await res.json();
+    const limitText = body.credit_limit_usd ? ` / $${body.credit_limit_usd.toFixed(2)}` : "";
+    el.innerHTML = `
+      <div class="settings-field-label"><span>Current usage (live)</span></div>
+      <div class="settings-hint">
+        Tokens today: ${formatTokenCount(body.tokens_used_today || 0)} ·
+        Tokens total: ${formatTokenCount(body.tokens_used_total || 0)}<br>
+        Estimated spend: $${(body.estimated_cost_usd_total || 0).toFixed(4)}${limitText}
+        ${body.budget_alert && body.budget_alert.triggered ? "<br><strong style='color:var(--warn)'>⚠ Over your budget alert threshold</strong>" : ""}
+      </div>
+    `;
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t load usage.</div>';
+  }
+}
+
+// ---- Agent Defaults ----
+
+async function renderAgentDefaultsCategory(content) {
+  const defaultAgentField = settingsState.settings.find((s) => s.key === "default_agent");
+  content.innerHTML = `
+    <h3>Agent Defaults</h3>
+    ${defaultAgentField ? renderGenericField(defaultAgentField) : ""}
+    <div id="agent-defaults-inner"><div class="settings-hint">Loading…</div></div>
+  `;
+  if (defaultAgentField) wireGenericField(content, defaultAgentField);
+
+  try {
+    const res = await fetch("/api/settings/agent-config");
+    const body = await res.json();
+    const inner = document.getElementById("agent-defaults-inner");
+    if (!inner) return;
+
+    const rows = body.agents.map((a) => {
+      const cfg = body.config[a.id] || {};
+      const def = body.defaults[a.id] || {};
+      const modelIsCheaper = cfg.model === "cheaper";
+      return `
+        <tr data-agent="${a.id}">
+          <td>${a.label}</td>
+          <td><input type="checkbox" class="ac-enabled" ${cfg.enabled === false ? "" : "checked"}></td>
+          <td>
+            <select class="ac-model">
+              <option value="" ${!modelIsCheaper ? "selected" : ""}>Default (${def.model})</option>
+              <option value="cheaper" ${modelIsCheaper ? "selected" : ""}>Cheaper (${body.cheaper_model})</option>
+            </select>
+          </td>
+          <td><input type="number" class="ac-temperature" step="0.1" min="0" max="2" placeholder="${def.temperature}" value="${cfg.temperature !== undefined && cfg.temperature !== null ? cfg.temperature : ""}"></td>
+          <td><input type="number" class="ac-max-tokens" min="1" max="4096" placeholder="${def.max_tokens}" value="${cfg.max_tokens !== undefined && cfg.max_tokens !== null ? cfg.max_tokens : ""}"></td>
+        </tr>
+      `;
+    }).join("");
+
+    inner.innerHTML = `
+      <div class="settings-field">
+        <div class="settings-field-label">
+          <span>Per-agent overrides</span>
+          <button class="info-btn" id="agent-config-info-btn">i</button>
+        </div>
+        <div class="info-note" id="note-agent_config">
+          Enable/disable an agent, swap in a cheaper model, or override temperature/max tokens.
+          Disabling an agent rejects requests to it outright (HTTP 403) before any model is
+          called — costs nothing either way. The model swap is the one control here that
+          actually reduces spend: "Cheaper" is a smaller official Replicate model (no
+          version-pinning risk). Temperature doesn't affect cost. A higher max-tokens value
+          costs nothing to set, but produces longer — and more expensive — replies on every
+          future call to that agent.
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="agent-config-table">
+            <thead><tr><th>Agent</th><th>Enabled</th><th>Model</th><th>Temp</th><th>Max tokens</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="settings-save-row">
+          <button class="settings-btn primary" id="save-agent-config-btn">Save agent defaults</button>
+        </div>
+      </div>
+    `;
+    inner.querySelector("#agent-config-info-btn").addEventListener("click", () => toggleInfoNote("agent_config"));
+    inner.querySelector("#save-agent-config-btn").addEventListener("click", saveAgentConfigMatrix);
+  } catch (err) {
+    showToast("Couldn't load agent defaults.");
+  }
+}
+
+async function saveAgentConfigMatrix() {
+  const rows = document.querySelectorAll("#agent-defaults-inner .agent-config-table tbody tr");
+  const config = {};
+  rows.forEach((row) => {
+    const agentId = row.getAttribute("data-agent");
+    const tempRaw = row.querySelector(".ac-temperature").value;
+    const mtRaw = row.querySelector(".ac-max-tokens").value;
+    config[agentId] = {
+      enabled: row.querySelector(".ac-enabled").checked,
+      model: row.querySelector(".ac-model").value || null,
+      temperature: tempRaw === "" ? null : parseFloat(tempRaw),
+      max_tokens: mtRaw === "" ? null : parseInt(mtRaw, 10),
+    };
+  });
+  try {
+    const res = await fetch("/api/settings/agent-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+    const body = await res.json();
+    if (!res.ok) { showToast(body.message || "Couldn't save."); return; }
+    showToast("Agent defaults saved.");
+  } catch (err) {
+    showToast("Network error — couldn't save.");
+  }
+}
+
+// ---- Data Controls ----
+
+function renderDataControlsCategory(content) {
+  const fields = fieldsFor("data_controls");
+  content.innerHTML = `
+    <h3>Data Controls</h3>
+    ${fields.map(renderGenericField).join("")}
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Purge old tasks now</span>
+        <button class="info-btn" id="purge-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-purge_now">
+        Deletes saved tasks older than the number of days you enter (or the "Auto-purge"
+        setting above, if you leave this blank). This button is the only thing that actually
+        deletes anything — Vercel has no scheduler wired up, so the setting alone never runs on
+        its own. Costs nothing; it's a database delete, no Replicate call involved.
+      </div>
+      <div class="settings-row">
+        <input class="settings-input" type="number" min="1" id="purge-days-input" placeholder="days" style="max-width:100px;">
+        <button class="settings-btn danger" id="purge-now-btn">Purge now</button>
+      </div>
+    </div>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Chats (stored in this browser only)</span>
+        <button class="info-btn" id="chats-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-local_chats">
+        Chat history lives only in this browser's local storage — Jarvis's server never stores
+        it beyond the single request/response used to generate each reply. Export downloads it
+        as JSON; Clear removes it from this device permanently. Neither touches Replicate — no
+        tokens involved either way.
+      </div>
+      <div class="settings-row">
+        <button class="settings-btn" id="export-chats-btn">Export chats as JSON</button>
+        <button class="settings-btn danger" id="clear-chats-btn">Clear local history</button>
+      </div>
+    </div>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Recent tasks (saved server-side)</span></div>
+      <div id="task-browser-list"><div class="settings-hint">Loading…</div></div>
+    </div>
+  `;
+  fields.forEach((f) => wireGenericField(content, f));
+
+  content.querySelector("#purge-info-btn").addEventListener("click", () => toggleInfoNote("purge_now"));
+  content.querySelector("#purge-now-btn").addEventListener("click", purgeOldTasks);
+  content.querySelector("#chats-info-btn").addEventListener("click", () => toggleInfoNote("local_chats"));
+  content.querySelector("#export-chats-btn").addEventListener("click", exportChatsAsJson);
+  content.querySelector("#clear-chats-btn").addEventListener("click", clearLocalChats);
+
+  loadTaskBrowser();
+}
+
+async function purgeOldTasks() {
+  const daysInput = document.getElementById("purge-days-input").value;
+  const body = daysInput ? { older_than_days: parseFloat(daysInput) } : {};
+  if (!confirm("Delete matching tasks permanently? This can't be undone.")) return;
+  try {
+    const res = await fetch("/api/data/purge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await res.json();
+    if (!res.ok) { showToast(result.message || "Purge failed."); return; }
+    showToast(`Deleted ${result.deleted_count} task(s).`);
+    loadTaskBrowser();
+  } catch (err) {
+    showToast("Network error.");
+  }
+}
+
+function exportChatsAsJson() {
+  const data = localStorage.getItem(STORAGE_KEY) || "[]";
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "jarvis-chats-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast("Exported.");
+}
+
+function clearLocalChats() {
+  if (!confirm("Delete all local chat history from this browser? This can't be undone.")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(CURRENT_KEY);
+  localStorage.removeItem(OPEN_TABS_KEY);
+  showToast("Local chat history cleared. Reloading…");
+  setTimeout(() => location.reload(), 800);
+}
+
+async function loadTaskBrowser() {
+  const el = document.getElementById("task-browser-list");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/tasks?limit=20");
+    const body = await res.json();
+    const tasks = body.tasks || [];
+    if (!tasks.length) {
+      el.innerHTML = '<div class="modal-empty">No saved tasks yet.</div>';
+      return;
+    }
+    el.innerHTML = tasks.map((t) => `
+      <div class="task-row" data-id="${t.id}">
+        <div class="task-meta">
+          <span class="task-agent">${escapeHtml(t.agent_type || "")}</span>
+          <span class="task-time"> · ${t.created_at ? new Date(t.created_at).toLocaleString() : ""}</span>
+          <div class="task-summary">${escapeHtml(JSON.stringify(t.input || {}).slice(0, 80))}</div>
+        </div>
+        <button class="task-delete-btn" title="Delete">🗑</button>
+      </div>
+    `).join("");
+    el.querySelectorAll(".task-row").forEach((row) => {
+      row.querySelector(".task-delete-btn").addEventListener("click", async () => {
+        if (!confirm("Delete this task permanently?")) return;
+        await fetch("/api/tasks/" + row.getAttribute("data-id"), { method: "DELETE" });
+        loadTaskBrowser();
+      });
+    });
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t load tasks.</div>';
+  }
+}
+
+// ---- Appearance ----
+
+function renderAppearanceCategory(content) {
+  const compact = localStorage.getItem("jarvisCompactMode") === "1";
+  content.innerHTML = `
+    <h3>Appearance</h3>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Compact messages</span>
+        <button class="info-btn" id="compact-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-compact_mode">
+        Tightens spacing between chat messages. Saved in this browser only — costs nothing, no
+        server involved. A full light theme is planned but not built yet, so this is the one
+        real Appearance control for now; the dashboard stays dark-mode only.
+      </div>
+      <div class="settings-row">
+        <span class="settings-hint">Reduce spacing between messages</span>
+        <input type="checkbox" id="compact-toggle" ${compact ? "checked" : ""}>
+      </div>
+    </div>
+  `;
+  content.querySelector("#compact-info-btn").addEventListener("click", () => toggleInfoNote("compact_mode"));
+  content.querySelector("#compact-toggle").addEventListener("change", (e) => {
+    localStorage.setItem("jarvisCompactMode", e.target.checked ? "1" : "0");
+    document.body.classList.toggle("compact-mode", e.target.checked);
+    showToast("Saved.");
+  });
+}
+
+// ---- System Status ----
+
+async function renderSystemStatusCategory(content) {
+  content.innerHTML = `<h3>System Status</h3><div id="system-status-inner"><div class="settings-hint">Loading…</div></div>`;
+  const inner = document.getElementById("system-status-inner");
+  try {
+    const res = await fetch("/status");
+    const body = await res.json();
+    if (!inner) return;
+    const rows = Object.entries(body.components || {}).map(([name, state]) => `
+      <div class="status-row">
+        <span>${escapeHtml(name)}</span>
+        <span class="status-badge ${state}">${state}</span>
+      </div>
+    `).join("");
+    inner.innerHTML = `
+      <div class="settings-hint" style="margin-bottom:10px;">Last checked: ${new Date(body.timestamp).toLocaleString()}</div>
+      ${rows}
+      <div class="settings-hint" style="margin-top:10px;">
+        Checking status never calls a Replicate model — "replicate" here only confirms an API
+        key is configured, not that a real prediction ran. Costs nothing.
+      </div>
+    `;
+  } catch (err) {
+    if (inner) inner.innerHTML = '<div class="modal-empty">Couldn\'t load status.</div>';
+  }
+}
+
+// ---- Skills ----
+
+function renderSkillsCategory(content) {
+  content.innerHTML = `
+    <h3>Skills</h3>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>What are Skills?</span>
+        <button class="info-btn" id="skills-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-skills_intro">
+        A Skill is a saved, versioned prompt template for one agent — activate it and that
+        agent uses your template instead of its built-in one, on every future request until you
+        deactivate it. Creating, editing, or activating a skill costs nothing by itself; it only
+        changes the prompt sent the next time that agent actually runs, same cost as any other
+        call to it.
+      </div>
+      <select class="settings-select" id="skills-agent-select"></select>
+    </div>
+    <div id="skills-vars-hint"></div>
+    <div id="skills-list"></div>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>New skill</span></div>
+      <input class="settings-input" id="new-skill-name" placeholder="Name" style="margin-bottom:8px;">
+      <input class="settings-input" id="new-skill-desc" placeholder="Description (optional)" style="margin-bottom:8px;">
+      <textarea class="settings-textarea" id="new-skill-template" placeholder="Prompt template using $variables…"></textarea>
+      <div class="settings-save-row">
+        <button class="settings-btn primary" id="create-skill-btn">Create skill</button>
+      </div>
+    </div>
+  `;
+  content.querySelector("#skills-info-btn").addEventListener("click", () => toggleInfoNote("skills_intro"));
+
+  const agentSelect = content.querySelector("#skills-agent-select");
+  AGENTS.forEach((a) => {
+    const opt = document.createElement("option");
+    opt.value = a.id;
+    opt.textContent = a.label;
+    if (a.id === settingsState.activeSkillAgent) opt.selected = true;
+    agentSelect.appendChild(opt);
+  });
+  agentSelect.addEventListener("change", (e) => {
+    settingsState.activeSkillAgent = e.target.value;
+    loadSkillsForAgent();
+  });
+  content.querySelector("#create-skill-btn").addEventListener("click", createSkill);
+
+  loadSkillsForAgent();
+}
+
+function loadSkillsForAgent() {
+  const agentId = settingsState.activeSkillAgent;
+  const varsHint = document.getElementById("skills-vars-hint");
+  if (varsHint) {
+    const vars = (AGENT_TEMPLATE_VARS[agentId] || []).map((v) => "$" + v).join(", ");
+    varsHint.innerHTML = `<div class="skill-vars-hint">Available variables for ${agentId}: ${vars}</div>`;
+  }
+  fetchSkillsList(agentId);
+}
+
+async function fetchSkillsList(agentId) {
+  const list = document.getElementById("skills-list");
+  if (!list) return;
+  list.innerHTML = '<div class="settings-hint">Loading…</div>';
+  try {
+    const res = await fetch("/api/skills?agent_type=" + agentId);
+    const body = await res.json();
+    const activeId = body.active_by_agent[agentId];
+    const skills = body.skills || [];
+    if (!skills.length) {
+      list.innerHTML = '<div class="modal-empty">No skills yet for this agent — it uses its built-in prompt.</div>';
+      return;
+    }
+    list.innerHTML = skills.map((s) => `
+      <div class="skill-item" data-id="${s.id}">
+        <div class="skill-item-header">
+          <span class="name">${escapeHtml(s.skill_name)}</span>
+          <span class="version">v${escapeHtml(s.version || "1.0")}</span>
+          ${s.id === activeId ? '<span class="skill-active-badge">Active</span>' : ""}
+        </div>
+        ${s.description ? `<div class="skill-desc">${escapeHtml(s.description)}</div>` : ""}
+        <div class="skill-actions">
+          ${s.id === activeId
+            ? '<button class="deactivate-btn">Deactivate</button>'
+            : '<button class="activate-btn">Activate</button>'}
+          <button class="delete-skill-btn">Delete</button>
+        </div>
+      </div>
+    `).join("");
+    list.querySelectorAll(".skill-item").forEach((item) => {
+      const id = item.getAttribute("data-id");
+      const activateBtn = item.querySelector(".activate-btn");
+      if (activateBtn) {
+        activateBtn.addEventListener("click", async () => {
+          await fetch(`/api/skills/${id}/activate`, { method: "POST" });
+          showToast("Skill activated.");
+          fetchSkillsList(agentId);
+        });
+      }
+      const deactivateBtn = item.querySelector(".deactivate-btn");
+      if (deactivateBtn) {
+        deactivateBtn.addEventListener("click", async () => {
+          await fetch("/api/skills/deactivate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ agent_type: agentId }),
+          });
+          showToast("Reverted to built-in prompt.");
+          fetchSkillsList(agentId);
+        });
+      }
+      item.querySelector(".delete-skill-btn").addEventListener("click", async () => {
+        if (!confirm("Delete this skill permanently?")) return;
+        await fetch(`/api/skills/${id}`, { method: "DELETE" });
+        fetchSkillsList(agentId);
+      });
+    });
+  } catch (err) {
+    list.innerHTML = '<div class="modal-empty">Couldn\'t load skills.</div>';
+  }
+}
+
+async function createSkill() {
+  const agentId = settingsState.activeSkillAgent;
+  const name = document.getElementById("new-skill-name").value.trim();
+  const desc = document.getElementById("new-skill-desc").value.trim();
+  const template = document.getElementById("new-skill-template").value.trim();
+  if (!name || !template) {
+    showToast("Name and template are required.");
+    return;
+  }
+  try {
+    const res = await fetch("/api/skills", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_type: agentId, skill_name: name, description: desc, template }),
+    });
+    const body = await res.json();
+    if (!res.ok) { showToast(body.message || "Couldn't create skill."); return; }
+    showToast("Skill created.");
+    document.getElementById("new-skill-name").value = "";
+    document.getElementById("new-skill-desc").value = "";
+    document.getElementById("new-skill-template").value = "";
+    loadSkillsForAgent();
+  } catch (err) {
+    showToast("Network error.");
+  }
+}
+
+// ---- Connectors / MCP ----
+
+function renderConnectorsCategory(content) {
+  content.innerHTML = `
+    <h3>Connectors / MCP</h3>
+    <div class="settings-hint" style="margin-bottom:14px;">
+      Nothing here is wired up yet — these are placeholders for what's next. None of them can
+      consume tokens on their own: pulling in outside data is free, only what actually gets
+      stuffed into a prompt afterward counts as input.
+    </div>
+    ${CONNECTORS.map((c, i) => `
+      <div class="connector-card">
+        <span class="icon">${c.icon}</span>
+        <div>
+          <div class="name">${escapeHtml(c.name)}</div>
+          <div class="desc">${escapeHtml(c.desc)}</div>
+        </div>
+        <span class="connector-badge">${escapeHtml(c.badge)}</span>
+        <button class="info-btn" data-idx="${i}">i</button>
+      </div>
+      <div class="info-note" id="note-connector-${i}">${escapeHtml(c.note)}</div>
+    `).join("")}
+  `;
+  content.querySelectorAll(".connector-card .info-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const note = document.getElementById("note-connector-" + btn.getAttribute("data-idx"));
+      if (note) note.classList.toggle("show");
+    });
+  });
+}
+
+// ---- Custom Instructions / Rate Limiting / Webhooks (generic) ----
+
+function renderPersonalizationCategory(content) {
+  const fields = fieldsFor("personalization");
+  content.innerHTML = `<h3>Custom Instructions</h3>${fields.map(renderGenericField).join("")}`;
+  fields.forEach((f) => wireGenericField(content, f));
+}
+
+function renderRateLimitingCategory(content) {
+  const fields = fieldsFor("rate_limiting");
+  content.innerHTML = `<h3>Rate Limiting</h3>${fields.map(renderGenericField).join("")}`;
+  fields.forEach((f) => wireGenericField(content, f));
+}
+
+function renderWebhooksCategory(content) {
+  const fields = fieldsFor("webhooks");
+  content.innerHTML = `
+    <h3>Webhooks</h3>
+    ${fields.map(renderGenericField).join("")}
+    <div class="settings-field">
+      <div class="settings-row">
+        <span class="settings-hint">Send a test payload to the saved URL</span>
+        <button class="settings-btn" id="test-webhook-btn">Send test</button>
+      </div>
+    </div>
+  `;
+  fields.forEach((f) => wireGenericField(content, f));
+  content.querySelector("#test-webhook-btn").addEventListener("click", async () => {
+    try {
+      const res = await fetch("/api/settings/test-webhook", { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) { showToast(body.message || "Couldn't send test."); return; }
+      showToast(body.delivered ? `Delivered (HTTP ${body.status_code}).` : "Delivery failed: " + body.error);
+    } catch (err) {
+      showToast("Network error.");
+    }
+  });
+}
+
+// ---- Advanced / Danger Zone ----
+
+function renderDangerZoneCategory(content) {
+  content.innerHTML = `
+    <h3>Advanced / Danger Zone</h3>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Reset all settings</span>
+        <button class="info-btn" id="reset-settings-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-reset_settings">
+        Reverts every setting on this page — including Agent Defaults overrides and active
+        Skill selections — back to its default or env-var fallback. Does not delete Skills
+        themselves, or any chat/task history. Costs nothing; no model call involved.
+      </div>
+      <button class="settings-btn danger" id="reset-settings-btn">Reset all settings</button>
+    </div>
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Reset usage stats</span>
+        <button class="info-btn" id="reset-usage-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-reset_usage">
+        Wipes the tokens/cost totals shown in the sidebar and Usage & Billing — useful to start
+        a fresh count for a new month. Does not touch saved task history. Costs nothing.
+      </div>
+      <button class="settings-btn danger" id="reset-usage-btn">Reset usage stats</button>
+    </div>
+  `;
+  content.querySelector("#reset-settings-info-btn").addEventListener("click", () => toggleInfoNote("reset_settings"));
+  content.querySelector("#reset-usage-info-btn").addEventListener("click", () => toggleInfoNote("reset_usage"));
+  content.querySelector("#reset-settings-btn").addEventListener("click", async () => {
+    if (!confirm("Reset ALL settings to defaults? This can't be undone.")) return;
+    await fetch("/api/settings/reset", { method: "POST" });
+    showToast("Settings reset.");
+    await loadSettingsSchema();
+    selectSettingsCategory(settingsState.activeCategory);
+    loadUsage();
+  });
+  content.querySelector("#reset-usage-btn").addEventListener("click", async () => {
+    if (!confirm("Reset all usage stats? This can't be undone.")) return;
+    await fetch("/api/usage/reset", { method: "POST" });
+    showToast("Usage stats reset.");
+    loadUsage();
+  });
+}
+
+// ---- wiring ----
+document.getElementById("settings-trigger").addEventListener("click", openSettings);
+document.getElementById("settings-close").addEventListener("click", closeSettings);
+document.getElementById("settings-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "settings-backdrop") closeSettings();
+});
+if (localStorage.getItem("jarvisCompactMode") === "1") {
+  document.body.classList.add("compact-mode");
+}
 
 // ---- init ----
 if (!getCurrentChat() && chats.length) {

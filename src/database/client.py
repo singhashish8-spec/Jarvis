@@ -7,7 +7,7 @@ directly — makes it easy to swap the backend later if needed.
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from supabase import Client, create_client
@@ -199,6 +199,120 @@ class DatabaseClient:
         action needs to know it didn't actually save (e.g. because the
         `settings` table hasn't been created yet — see docs/DATABASE.md)."""
         self.client.table("settings").upsert({"key": key, "value": value}).execute()
+
+    def delete_task(self, task_id: str) -> bool:
+        """Delete a single task row — backs the dashboard's task browser
+        (Data Controls). Returns True on success."""
+        try:
+            self.client.table("tasks").delete().eq("id", task_id).execute()
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to delete task %s: %s", task_id, exc)
+            return False
+
+    def count_recent_tasks(self, seconds: int) -> int:
+        """Count tasks created in the trailing `seconds` — backs rate
+        limiting. Reuses `tasks.created_at` instead of an in-memory
+        counter: Vercel's serverless functions don't reliably keep
+        process memory between requests, but the DB always has the
+        real history."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
+        try:
+            result = (
+                self.client.table("tasks")
+                .select("id")
+                .gte("created_at", cutoff)
+                .execute()
+            )
+            return len(result.data or [])
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to count recent tasks: %s", exc)
+            return 0
+
+    def purge_tasks_older_than(self, days: int) -> int:
+        """Delete tasks older than `days`. Returns how many were removed.
+        Manual-trigger only (Data Controls' "Purge now" button) — Vercel
+        has no background scheduler wired up for this to run on its own
+        yet, so it never happens unless you click the button."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        result = self.client.table("tasks").delete().lt("created_at", cutoff).execute()
+        return len(result.data or [])
+
+    def reset_usage(self) -> None:
+        """Wipe every row from the `usage` table — danger-zone action for
+        starting a fresh spend count (e.g. a new month). Re-raises on
+        failure so the caller can tell the user it didn't work."""
+        self.client.table("usage").delete().neq(
+            "id", "00000000-0000-0000-0000-000000000000"
+        ).execute()
+
+    def reset_all_settings(self) -> None:
+        """Delete every row from the `settings` table, reverting every
+        dashboard-configured setting back to its schema default (or its
+        env-var fallback, for credit_limit_usd/gpu_rate_per_second_usd)."""
+        self.client.table("settings").delete().neq("key", "__never_matches__").execute()
+
+    def list_skills(self, agent_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List skills (prompt-template overrides), optionally filtered to
+        one agent. Read path degrades to an empty list on failure, same
+        as list_tasks — a broken settings feature shouldn't take agents
+        down with it."""
+        try:
+            query = self.client.table("skills").select("*")
+            if agent_type:
+                query = query.eq("agent_type", agent_type)
+            result = query.order("created_at", desc=True).execute()
+            return result.data or []
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to list skills: %s", exc)
+            return []
+
+    def get_skill(self, skill_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch one skill by id, or None if missing/unreachable — agents
+        read this on every request to check for an active override, so
+        it must never raise."""
+        try:
+            result = (
+                self.client.table("skills").select("*").eq("id", skill_id).execute()
+            )
+            return result.data[0] if result.data else None
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to get skill %s: %s", skill_id, exc)
+            return None
+
+    def create_skill(
+        self,
+        agent_type: str,
+        skill_name: str,
+        template: str,
+        description: str = "",
+        version: str = "1.0",
+    ) -> Optional[str]:
+        """Create a new skill (prompt template). Re-raises on failure —
+        the settings UI needs to know a save didn't take."""
+        result = (
+            self.client.table("skills")
+            .insert(
+                {
+                    "agent_type": agent_type,
+                    "skill_name": skill_name,
+                    "description": description,
+                    "template": template,
+                    "version": version,
+                    "is_active": True,
+                }
+            )
+            .execute()
+        )
+        return result.data[0]["id"] if result.data else None
+
+    def update_skill(self, skill_id: str, **fields: Any) -> None:
+        """Update arbitrary columns on a skill. Re-raises on failure."""
+        self.client.table("skills").update(fields).eq("id", skill_id).execute()
+
+    def delete_skill(self, skill_id: str) -> None:
+        """Delete a skill. Re-raises on failure."""
+        self.client.table("skills").delete().eq("id", skill_id).execute()
 
     def get_daily_cost(self, date_str: str) -> float:
         """Total cost (INR) of all tasks created on a given date (YYYY-MM-DD)."""

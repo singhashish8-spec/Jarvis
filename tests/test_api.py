@@ -125,6 +125,360 @@ def test_set_credit_limit_rejects_non_numeric(client):
     assert response.status_code == 400
 
 
+def test_get_settings_returns_categories_and_schema(client):
+    response = client.get("/api/settings")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["categories"]
+    keys = [s["key"] for s in data["settings"]]
+    assert "credit_limit_usd" in keys
+    assert "custom_instructions" in keys
+    for entry in data["settings"]:
+        assert "note" in entry
+        assert "costs_tokens" in entry
+
+
+def test_post_settings_bulk_update_saves_and_validates(client):
+    response = client.post(
+        "/api/settings",
+        data=json.dumps(
+            {"rate_limit_per_minute": 10, "webhook_url": "https://example.com/hook"}
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert set(json.loads(response.data)["saved"]) == {
+        "rate_limit_per_minute",
+        "webhook_url",
+    }
+
+    settings = {
+        s["key"]: s["value"]
+        for s in json.loads(client.get("/api/settings").data)["settings"]
+    }
+    assert settings["rate_limit_per_minute"] == 10.0
+    assert settings["webhook_url"] == "https://example.com/hook"
+
+
+def test_post_settings_rejects_bad_value_in_batch(client):
+    response = client.post(
+        "/api/settings",
+        data=json.dumps({"budget_alert_threshold_pct": 500}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_post_settings_rejects_empty_body(client):
+    response = client.post(
+        "/api/settings", data=json.dumps({}), content_type="application/json"
+    )
+    assert response.status_code == 400
+
+
+def test_settings_reset_clears_saved_values(client):
+    client.post(
+        "/api/settings",
+        data=json.dumps({"custom_instructions": "be terse"}),
+        content_type="application/json",
+    )
+    response = client.post("/api/settings/reset")
+    assert response.status_code == 200
+
+    settings = {
+        s["key"]: s["value"]
+        for s in json.loads(client.get("/api/settings").data)["settings"]
+    }
+    assert settings["custom_instructions"] == ""
+
+
+def test_get_agent_config_returns_agents_and_defaults(client):
+    response = client.get("/api/settings/agent-config")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert {a["id"] for a in data["agents"]} == {
+        "brainstorm",
+        "coder",
+        "tester",
+        "deployer",
+        "document",
+        "qa",
+    }
+    assert "brainstorm" in data["defaults"]
+    assert data["cheaper_model"]
+    assert data["config"] == {}
+
+
+def test_post_agent_config_saves_and_round_trips(client):
+    payload = {
+        "coder": {
+            "enabled": False,
+            "model": "cheaper",
+            "temperature": 0.5,
+            "max_tokens": 300,
+        }
+    }
+    response = client.post(
+        "/api/settings/agent-config",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert json.loads(response.data)["config"]["coder"]["enabled"] is False
+
+    data = json.loads(client.get("/api/settings/agent-config").data)
+    assert data["config"]["coder"]["model"] == "cheaper"
+
+
+def test_post_agent_config_rejects_invalid_entry(client):
+    response = client.post(
+        "/api/settings/agent-config",
+        data=json.dumps({"coder": {"temperature": 99}}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_disabled_agent_rejects_requests(client):
+    client.post(
+        "/api/settings/agent-config",
+        data=json.dumps({"coder": {"enabled": False}}),
+        content_type="application/json",
+    )
+    response = client.post(
+        "/api/agents/code",
+        data=json.dumps({"requirements": "a function"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+def test_rate_limit_rejects_over_threshold(client, monkeypatch):
+    from src.main import db_client
+
+    client.post(
+        "/api/settings",
+        data=json.dumps({"rate_limit_per_minute": 1}),
+        content_type="application/json",
+    )
+    monkeypatch.setattr(db_client, "count_recent_tasks", lambda seconds: 5)
+
+    response = client.post(
+        "/api/agents/brainstorm",
+        data=json.dumps({"topic": "test"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 429
+
+
+def test_rate_limit_disabled_by_default(client, monkeypatch):
+    from src.main import db_client
+
+    monkeypatch.setattr(db_client, "count_recent_tasks", lambda seconds: 999)
+    response = client.post(
+        "/api/agents/brainstorm",
+        data=json.dumps({"topic": "test"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+
+def test_list_tasks_endpoint(client):
+    response = client.get("/api/tasks")
+    assert response.status_code == 200
+    assert json.loads(response.data)["tasks"] == []
+
+
+def test_delete_task_endpoint(client):
+    response = client.delete("/api/tasks/some-id")
+    assert response.status_code == 200
+    assert json.loads(response.data)["deleted"] == "some-id"
+
+
+def test_purge_requires_positive_days(client):
+    response = client.post(
+        "/api/data/purge", data=json.dumps({}), content_type="application/json"
+    )
+    assert response.status_code == 400
+
+
+def test_purge_with_explicit_days(client):
+    response = client.post(
+        "/api/data/purge",
+        data=json.dumps({"older_than_days": 30}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert json.loads(response.data)["deleted_count"] == 0
+
+
+def test_usage_reset_endpoint(client):
+    response = client.post("/api/usage/reset")
+    assert response.status_code == 200
+    assert json.loads(response.data)["reset"] is True
+
+
+def test_skills_crud_and_activation_flow(client):
+    create_res = client.post(
+        "/api/skills",
+        data=json.dumps(
+            {
+                "agent_type": "brainstorm",
+                "skill_name": "Terse ideas",
+                "template": "Ideas for $topic, keep it short.",
+                "description": "Shorter brainstorm output",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert create_res.status_code == 201
+    skill_id = json.loads(create_res.data)["id"]
+
+    list_res = client.get("/api/skills?agent_type=brainstorm")
+    body = json.loads(list_res.data)
+    assert any(s["id"] == skill_id for s in body["skills"])
+    assert body["active_by_agent"]["brainstorm"] is None
+
+    activate_res = client.post(f"/api/skills/{skill_id}/activate")
+    assert activate_res.status_code == 200
+
+    list_res2 = json.loads(client.get("/api/skills?agent_type=brainstorm").data)
+    assert list_res2["active_by_agent"]["brainstorm"] == skill_id
+
+    deactivate_res = client.post(
+        "/api/skills/deactivate",
+        data=json.dumps({"agent_type": "brainstorm"}),
+        content_type="application/json",
+    )
+    assert deactivate_res.status_code == 200
+
+    update_res = client.put(
+        f"/api/skills/{skill_id}",
+        data=json.dumps({"description": "Updated"}),
+        content_type="application/json",
+    )
+    assert update_res.status_code == 200
+
+    delete_res = client.delete(f"/api/skills/{skill_id}")
+    assert delete_res.status_code == 200
+    final_list = json.loads(client.get("/api/skills?agent_type=brainstorm").data)
+    assert not any(s["id"] == skill_id for s in final_list["skills"])
+
+
+def test_create_skill_requires_valid_agent_type(client):
+    response = client.post(
+        "/api/skills",
+        data=json.dumps({"agent_type": "not-real", "skill_name": "x", "template": "y"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_create_skill_requires_name_and_template(client):
+    response = client.post(
+        "/api/skills",
+        data=json.dumps({"agent_type": "coder", "skill_name": "", "template": ""}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_activate_nonexistent_skill_returns_404(client):
+    response = client.post("/api/skills/does-not-exist/activate")
+    assert response.status_code == 404
+
+
+def test_active_skill_is_actually_used_in_prompt(client, monkeypatch):
+    """End-to-end: activating a skill changes the real prompt sent to
+    Replicate for that agent's next request."""
+    from src.agents.brainstorm_agent import BrainstormAgent
+    from src.main import brainstorm_agent
+
+    create_res = client.post(
+        "/api/skills",
+        data=json.dumps(
+            {
+                "agent_type": "brainstorm",
+                "skill_name": "Custom",
+                "template": "SKILL TEMPLATE for $topic",
+            }
+        ),
+        content_type="application/json",
+    )
+    skill_id = json.loads(create_res.data)["id"]
+    client.post(f"/api/skills/{skill_id}/activate")
+
+    captured = {}
+
+    def fake_run(model, input_data, version=None):
+        captured["prompt"] = input_data["prompt"]
+        return {
+            "output": "ok",
+            "usage": {
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": 2,
+                "predict_time_seconds": 0.1,
+                "estimated_cost_usd": 0.0001,
+            },
+        }
+
+    monkeypatch.setattr(brainstorm_agent.replicate_client, "run", fake_run)
+    monkeypatch.setattr(BrainstormAgent, "verify_api_key", lambda self: True)
+
+    response = client.post(
+        "/api/agents/brainstorm",
+        data=json.dumps({"topic": "warehouses"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert captured["prompt"] == "SKILL TEMPLATE for warehouses"
+
+
+def test_test_webhook_requires_url_configured(client):
+    response = client.post("/api/settings/test-webhook")
+    assert response.status_code == 400
+
+
+def test_test_webhook_reports_delivery_failure_gracefully(client):
+    client.post(
+        "/api/settings",
+        data=json.dumps({"webhook_url": "http://127.0.0.1:1/unreachable"}),
+        content_type="application/json",
+    )
+    response = client.post("/api/settings/test-webhook")
+    assert response.status_code == 200
+    assert json.loads(response.data)["delivered"] is False
+
+
+def test_webhook_delivered_after_agent_completes(client, monkeypatch):
+    delivered = {}
+
+    class FakeResponse:
+        status_code = 200
+
+    def fake_post(url, json=None, timeout=None):
+        delivered["url"] = url
+        delivered["payload"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr("src.main.requests.post", fake_post)
+    client.post(
+        "/api/settings",
+        data=json.dumps({"webhook_url": "https://example.com/hook"}),
+        content_type="application/json",
+    )
+
+    response = client.post(
+        "/api/agents/brainstorm",
+        data=json.dumps({"topic": "test"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert delivered["url"] == "https://example.com/hook"
+    assert delivered["payload"]["agent_type"] == "brainstorm"
+
+
 def test_brainstorm_endpoint(client, sample_brainstorm_input):
     response = client.post(
         "/api/agents/brainstorm",

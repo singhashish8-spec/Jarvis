@@ -44,12 +44,14 @@ Full walkthrough (including creating your Replicate/Supabase/R2 accounts): [docs
 ## Project Status
 
 **Live now**
-- Flask API with health/status + 5 agent endpoints
+- Flask API with health/status + 6 agent endpoints
 - Supabase database wrapper, Cloudflare R2 storage wrapper
 - Brainstorm, Coder, Tester, Deployer, Document, and QA agents — all calling real Replicate models
+- ChatGPT-style dashboard (chat UI, tabs, push-to-tab), no build step required
+- Live token usage and estimated-spend tracking, with a full Settings panel — budget alerts, per-agent overrides, custom instructions, rate limiting, webhooks, Skills (versioned prompt templates), and more; see [docs/SETTINGS.md](docs/SETTINGS.md)
 - Tests (offline, mocked), CI (GitHub Actions), one-command setup
 
-**Next (Phase 1 remainder)** — a dashboard so you're not stuck using curl, and Google Antigravity integration.
+**Next** — Connectors/MCP (currently placeholders in Settings — Google Drive/Slack/GitHub need building; PyRevit/local-PC access needs a local bridge app or the Phase 3 hardware migration below), Google Antigravity integration.
 
 **Phase 2+** — fine-tuning, optional home-server migration (cost drops ~93%).
 
@@ -81,6 +83,7 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [Architecture](docs/ARCHITECTURE.md) — how the system fits together
 - [Database](docs/DATABASE.md) — Supabase schema
 - [Agents](docs/AGENTS.md) — what each agent does, phase by phase
+- [Settings](docs/SETTINGS.md) — every dashboard setting, what it does, and whether it costs tokens
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common problems and fixes
 - [Roadmap](ROADMAP.md) — the full 12-month plan
 

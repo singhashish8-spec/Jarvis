@@ -16,6 +16,7 @@ from typing import Any, Dict
 
 from src.agents.base_agent import BaseAgent
 from src.agents.replicate_client import ReplicateClient
+from src.settings import resolve_model_and_version
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,25 @@ class DeployerAgent(BaseAgent):
         logger.info("Planning deployment: %s", change_summary)
 
         try:
-            prompt = self._build_prompt(change_summary, target, context)
+            prompt = self.resolve_prompt(
+                self._build_prompt(change_summary, target, context),
+                {
+                    "change_summary": change_summary,
+                    "target": target,
+                    "context": context,
+                },
+            )
+            model, version = resolve_model_and_version(
+                self.settings, MODEL, MODEL_VERSION
+            )
             run_result = self.replicate_client.run(
-                MODEL,
-                {"prompt": prompt, "max_new_tokens": 512, "temperature": 0.3},
-                version=MODEL_VERSION,
+                model,
+                {
+                    "prompt": prompt,
+                    "max_new_tokens": self.max_tokens_or(512),
+                    "temperature": self.temperature_or(0.3),
+                },
+                version=version,
             )
             result = {
                 "task_id": task_id,

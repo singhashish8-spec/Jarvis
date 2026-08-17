@@ -14,6 +14,7 @@ from typing import Any, Dict
 
 from src.agents.base_agent import BaseAgent
 from src.agents.replicate_client import ReplicateClient
+from src.settings import resolve_model_and_version
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,20 @@ class CoderAgent(BaseAgent):
         logger.info("Generating code: %s", requirements)
 
         try:
-            prompt = self._build_prompt(requirements, tech_stack, style, context)
+            prompt = self.resolve_prompt(
+                self._build_prompt(requirements, tech_stack, style, context),
+                {
+                    "requirements": requirements,
+                    "tech_stack": tech_stack,
+                    "style": style,
+                    "context": context,
+                },
+            )
+            model, version = resolve_model_and_version(
+                self.settings, MODEL, MODEL_VERSION
+            )
             run_result = self.replicate_client.run(
-                MODEL,
+                model,
                 {
                     "prompt": prompt,
                     # This model defaults to Chinese-language output on some
@@ -66,10 +78,10 @@ class CoderAgent(BaseAgent):
                         "You are a senior software engineer. Always respond "
                         "in English with working, production-quality code."
                     ),
-                    "max_new_tokens": 1024,
-                    "temperature": 0.2,
+                    "max_new_tokens": self.max_tokens_or(1024),
+                    "temperature": self.temperature_or(0.2),
                 },
-                version=MODEL_VERSION,
+                version=version,
             )
             result = {
                 "task_id": task_id,
