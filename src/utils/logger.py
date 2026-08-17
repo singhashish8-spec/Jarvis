@@ -17,7 +17,14 @@ def setup_logger(name: str, log_level: str = None) -> logging.Logger:
         logger.info("Something happened")
     """
     if log_level is None:
-        log_level = os.getenv("LOG_LEVEL", "INFO")
+        # `os.getenv(KEY, default)` only falls back when the variable is
+        # absent — a platform that pre-creates the var blank (Vercel does
+        # this when importing a project, scanning .env.example for keys)
+        # gets an empty string here instead, which getattr() below would
+        # reject. Treating falsy the same as unset covers both cases.
+        log_level = os.getenv("LOG_LEVEL") or "INFO"
+    if not hasattr(logging, log_level):
+        log_level = "INFO"
 
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, log_level))
