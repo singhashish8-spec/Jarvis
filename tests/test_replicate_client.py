@@ -35,13 +35,55 @@ def test_run_retries_after_transient_connection_error():
         }
     )
     poll_fail = RequestsConnectionError("Connection reset by peer")
-    poll_success = _response({"status": "succeeded", "output": ["hello", " world"]})
+    poll_success = _response(
+        {
+            "status": "succeeded",
+            "output": ["hello", " world"],
+            "metrics": {
+                "input_token_count": 5,
+                "output_token_count": 2,
+                "predict_time": 1.5,
+            },
+        }
+    )
 
     with patch("requests.request", side_effect=[create_resp, poll_fail, poll_success]):
         with patch("time.sleep"):  # don't actually wait during tests
-            output = client.run("meta/meta-llama-3-70b-instruct", {"prompt": "hi"})
+            result = client.run("meta/meta-llama-3-70b-instruct", {"prompt": "hi"})
 
-    assert output == "hello world"
+    assert result["output"] == "hello world"
+    assert result["usage"]["input_tokens"] == 5
+    assert result["usage"]["output_tokens"] == 2
+    assert result["usage"]["total_tokens"] == 7
+    assert result["usage"]["predict_time_seconds"] == 1.5
+    assert result["usage"]["estimated_cost_usd"] > 0
+
+
+def test_run_defaults_usage_to_zero_when_metrics_missing():
+    """Some models (e.g. image models, or an unexpected API response)
+    don't report metrics at all — usage should degrade to zeros rather
+    than raising."""
+    client = ReplicateClient()
+    create_resp = _response(
+        {
+            "status": "starting",
+            "urls": {"get": "https://api.replicate.com/v1/predictions/abc"},
+        }
+    )
+    success_resp = _response({"status": "succeeded", "output": "no metrics here"})
+
+    with patch("requests.request", side_effect=[create_resp, success_resp]):
+        with patch("time.sleep"):
+            result = client.run("meta/meta-llama-3-70b-instruct", {"prompt": "hi"})
+
+    assert result["output"] == "no metrics here"
+    assert result["usage"] == {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "predict_time_seconds": 0.0,
+        "estimated_cost_usd": 0.0,
+    }
 
 
 def test_run_raises_after_exhausting_retries():

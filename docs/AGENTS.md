@@ -111,6 +111,31 @@ curl -X POST http://localhost:5000/api/agents/qa \
 
 ---
 
+## Cost estimation
+
+Replicate's API has no endpoint for account balance or spend — only
+`/v1/account` (username/type). `ReplicateClient.run()` estimates a cost
+per call from what each finished prediction actually reports, in
+`prediction["metrics"]`:
+
+- **Llama 3 70B** (Brainstorm, Tester, Document) and other language
+  models sometimes report `input_token_count` / `output_token_count`.
+  When present, tokens are the accurate figure to track, but Replicate
+  doesn't publish a confirmed per-token price for this specific listing,
+  so cost still falls back to compute time below.
+- **All models** report `predict_time` (compute seconds). Cost is
+  estimated as `predict_time * REPLICATE_GPU_RATE_PER_SECOND`, which
+  defaults to Replicate's published Nvidia A100 (80GB) rate
+  ($0.0014/sec) — override it if your models run on different hardware.
+
+This total rolls into the `usage` table per agent/day (see
+[DATABASE.md](DATABASE.md)) and is exposed live via
+[`GET /api/usage`](API_SPEC.md#get-apiusage). Treat every dollar figure
+as an estimate — [replicate.com/account/billing](https://replicate.com/account/billing)
+is the only authoritative source for what you've actually been charged.
+
+---
+
 ## Adding a new agent
 
 1. Create `src/agents/<name>_agent.py`, subclass `BaseAgent`

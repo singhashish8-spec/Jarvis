@@ -57,6 +57,38 @@ not filled in yet)
 
 ---
 
+## `GET /api/usage`
+
+Live token usage and estimated spend, for the dashboard's usage widget.
+**Replicate has no API for real account balance/credit** — `/v1/account`
+only returns username/type, nothing financial (confirmed against
+Replicate's own docs). Every number here is derived from what each
+prediction actually reports (token counts when the model provides them,
+compute time otherwise — see [AGENTS.md](AGENTS.md#cost-estimation)), and
+`credit_limit_usd` is a budget you set yourself via
+`REPLICATE_CREDIT_LIMIT_USD` to match what you've loaded on
+[replicate.com/account/billing](https://replicate.com/account/billing) —
+that page remains the authoritative source for your real balance.
+
+**Response `200`**
+```json
+{
+  "tokens_used_today": 4210,
+  "tokens_used_total": 128430,
+  "estimated_cost_usd_today": 0.0842,
+  "estimated_cost_usd_total": 1.9031,
+  "credit_limit_usd": 10.0,
+  "credit_remaining_usd": 8.0969,
+  "cost_note": "Estimated from Replicate's own per-prediction metrics (tokens or compute time) — Replicate's API does not expose real account balance. See replicate.com/account/billing for the authoritative figure."
+}
+```
+
+`credit_limit_usd` and `credit_remaining_usd` are `null` when
+`REPLICATE_CREDIT_LIMIT_USD` isn't set — the dashboard just shows tokens
+and estimated spend with no budget bar in that case.
+
+---
+
 ## Agent endpoints
 
 All five follow the same shape: a JSON body with one required field

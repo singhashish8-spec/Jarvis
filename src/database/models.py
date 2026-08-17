@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE,
-    cost DECIMAL(10, 2),
-    cost_currency VARCHAR(3) DEFAULT 'INR'
+    cost DECIMAL(10, 4),
+    cost_currency VARCHAR(3) DEFAULT 'USD'
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_agent_type ON tasks(agent_type);
@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS usage (
     model_name VARCHAR(100),
     calls_count INTEGER DEFAULT 0,
     tokens_used INTEGER DEFAULT 0,
-    cost DECIMAL(10, 2) DEFAULT 0,
-    cost_currency VARCHAR(3) DEFAULT 'INR',
+    cost DECIMAL(10, 4) DEFAULT 0,
+    cost_currency VARCHAR(3) DEFAULT 'USD',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(date, agent_type)
 );

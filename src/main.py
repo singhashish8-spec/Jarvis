@@ -115,6 +115,35 @@ def status_check():
     return jsonify(status), http_code
 
 
+@app.route("/api/usage", methods=["GET"])
+def usage_check():
+    """Live token usage and estimated spend, for the dashboard's usage
+    widget. Replicate has no API for real account balance/credit (only
+    /v1/account, which returns username/type) — cost here is an estimate
+    computed from each prediction's own reported token counts or compute
+    time (see replicate_client.py), rolled up as tasks complete.
+
+    `credit_limit_usd` is whatever the user sets in REPLICATE_CREDIT_LIMIT_USD
+    to match what they've actually loaded on replicate.com/account/billing;
+    it's null (no bar shown) until set.
+    """
+    summary = db_client.get_usage_summary()
+    limit = config.REPLICATE_CREDIT_LIMIT_USD
+    summary["credit_limit_usd"] = limit
+    summary["credit_remaining_usd"] = (
+        round(limit - summary["estimated_cost_usd_total"], 4)
+        if limit is not None
+        else None
+    )
+    summary["cost_note"] = (
+        "Estimated from Replicate's own per-prediction metrics (tokens or "
+        "compute time) — Replicate's API does not expose real account "
+        "balance. See replicate.com/account/billing for the authoritative "
+        "figure."
+    )
+    return jsonify(summary), 200
+
+
 # ============================================
 # AGENT ENDPOINTS
 # ============================================
@@ -131,6 +160,8 @@ def _run_agent(
     """
     result = agent.process(**data)
     task_id = result.get("task_id")
+    usage = result.get("usage") or {}
+    cost = usage.get("estimated_cost_usd", 0.0)
 
     # Persistence is best-effort: a working result should still reach
     # the caller even if the DB/storage backends are briefly unavailable.
@@ -140,10 +171,21 @@ def _run_agent(
             input_data=data,
             output_data=result,
             status="completed",
+            cost=cost,
             task_id=task_id,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to persist task to database: %s", exc)
+
+    try:
+        db_client.record_usage(
+            agent_type=agent_type,
+            model_name=agent.model_name,
+            tokens_used=usage.get("total_tokens", 0),
+            cost=cost,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to record usage: %s", exc)
 
     try:
         r2_client.save_task_output(task_id, result)

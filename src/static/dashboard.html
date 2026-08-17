@@ -17,6 +17,7 @@
     --text-dimmer: #6e6e80;
     --error: #f87171;
     --ok: #4ade80;
+    --warn: #fbbf24;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -115,6 +116,33 @@
   }
   .sidebar-footer .dot.ok { background: var(--ok); }
   .sidebar-footer .dot.bad { background: var(--error); }
+
+  .usage-widget {
+    border-top: 1px solid var(--border-soft);
+    padding: 10px 10px 6px;
+    font-size: 11px;
+    color: var(--text-dimmer);
+  }
+  .usage-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+  .usage-row .usage-label { color: var(--text-dim); }
+  .usage-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-soft);
+    overflow: hidden;
+  }
+  .usage-bar-fill {
+    height: 100%;
+    background: var(--ok);
+    width: 0%;
+    transition: width 0.4s ease, background 0.4s ease;
+  }
+  .usage-bar-fill.warn { background: var(--warn); }
+  .usage-bar-fill.over { background: var(--error); }
 
   .backdrop {
     display: none;
@@ -612,6 +640,19 @@
       <span>＋</span> New chat
     </button>
     <div class="chat-list" id="chat-list"></div>
+    <div class="usage-widget" id="usage-widget" title="">
+      <div class="usage-row">
+        <span class="usage-label">Tokens today</span>
+        <span id="usage-tokens">—</span>
+      </div>
+      <div class="usage-row" id="usage-cost-row" style="display:none;">
+        <span class="usage-label">Est. spend</span>
+        <span id="usage-cost">—</span>
+      </div>
+      <div class="usage-bar" id="usage-bar" style="display:none;">
+        <div class="usage-bar-fill" id="usage-bar-fill"></div>
+      </div>
+    </div>
     <div class="sidebar-footer" id="sidebar-footer">
       <span><span class="dot" id="dot-database"></span>DB</span>
       <span><span class="dot" id="dot-replicate"></span>Replicate</span>
@@ -1211,6 +1252,7 @@ async function sendMessage(text) {
 
     if (res.ok) {
       chat.messages.push({ role: "assistant", content: body.output, taskId: body.task_id, elapsed });
+      loadUsage();
     } else {
       chat.messages.push({ role: "assistant", content: "**Error:** " + (body.message || "Something went wrong."), error: true });
     }
@@ -1257,6 +1299,47 @@ async function loadStatus() {
       const dot = document.getElementById("dot-" + name);
       if (dot) dot.className = "dot " + (state === "healthy" ? "ok" : "bad");
     });
+  } catch (err) {
+    // best-effort UI polish only
+  }
+}
+
+function formatTokenCount(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return String(n);
+}
+
+async function loadUsage() {
+  try {
+    const res = await fetch("/api/usage");
+    const body = await res.json();
+
+    document.getElementById("usage-tokens").textContent =
+      formatTokenCount(body.tokens_used_today || 0) +
+      " (" + formatTokenCount(body.tokens_used_total || 0) + " total)";
+
+    const limit = body.credit_limit_usd;
+    const spent = body.estimated_cost_usd_total || 0;
+    const costRow = document.getElementById("usage-cost-row");
+    const bar = document.getElementById("usage-bar");
+    const fill = document.getElementById("usage-bar-fill");
+
+    if (limit !== null && limit !== undefined && limit > 0) {
+      costRow.style.display = "flex";
+      bar.style.display = "block";
+      document.getElementById("usage-cost").textContent =
+        "$" + spent.toFixed(4) + " / $" + limit.toFixed(2);
+      const pct = Math.min(100, (spent / limit) * 100);
+      fill.style.width = pct + "%";
+      fill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
+    } else {
+      costRow.style.display = "flex";
+      bar.style.display = "none";
+      document.getElementById("usage-cost").textContent = "$" + spent.toFixed(4);
+    }
+
+    document.getElementById("usage-widget").title = body.cost_note || "";
   } catch (err) {
     // best-effort UI polish only
   }
@@ -1323,6 +1406,9 @@ renderTabStrip();
 renderSidebar();
 renderThread();
 loadStatus();
+loadUsage();
+setInterval(loadStatus, 20000);
+setInterval(loadUsage, 20000);
 document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
 </script>
 

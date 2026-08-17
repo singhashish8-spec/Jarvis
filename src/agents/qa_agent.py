@@ -34,7 +34,7 @@ class QAAgent(BaseAgent):
 
         try:
             prompt = self._build_prompt(code, context)
-            output = self.replicate_client.run(
+            run_result = self.replicate_client.run(
                 MODEL,
                 {
                     "prompt": prompt,
@@ -47,7 +47,11 @@ class QAAgent(BaseAgent):
                 },
                 version=MODEL_VERSION,
             )
-            result = {"task_id": task_id, "output": output}
+            result = {
+                "task_id": task_id,
+                "output": run_result["output"],
+                "usage": run_result["usage"],
+            }
             self.complete_task(result)
             return result
         except Exception as exc:

@@ -56,7 +56,7 @@ class CoderAgent(BaseAgent):
 
         try:
             prompt = self._build_prompt(requirements, tech_stack, style, context)
-            output = self.replicate_client.run(
+            run_result = self.replicate_client.run(
                 MODEL,
                 {
                     "prompt": prompt,
@@ -71,7 +71,12 @@ class CoderAgent(BaseAgent):
                 },
                 version=MODEL_VERSION,
             )
-            result = {"task_id": task_id, "output": output, "tech_stack": tech_stack}
+            result = {
+                "task_id": task_id,
+                "output": run_result["output"],
+                "usage": run_result["usage"],
+                "tech_stack": tech_stack,
+            }
             self.complete_task(result)
             return result
         except Exception as exc:

@@ -29,8 +29,8 @@ generation, etc.).
 | `output` | jsonb | the agent's result |
 | `error` | text | populated if `status = failed` |
 | `created_at` / `updated_at` / `completed_at` | timestamptz | |
-| `cost` | decimal(10,2) | INR, Phase 1+ |
-| `cost_currency` | varchar(3) | default `INR` |
+| `cost` | decimal(10,4) | USD estimate — see [AGENTS.md#cost-estimation](AGENTS.md#cost-estimation) |
+| `cost_currency` | varchar(3) | default `USD` |
 
 ### `projects`
 Groups tasks under a named project. Not used by the API yet (Phase 0);
@@ -42,8 +42,24 @@ Not used yet — will back the skills-versioning work described in the
 roadmap's later phases.
 
 ### `usage`
-Daily cost/usage rollups per agent, for the cost dashboard planned in
-Phase 1-2.
+One row per `(date, agent_type)`, upserted by `DatabaseClient.record_usage()`
+after every completed task: `calls_count`, `tokens_used`, and an estimated
+`cost` in USD. Backs the dashboard's live usage widget and the
+[`GET /api/usage`](API_SPEC.md#get-apiusage) endpoint.
+
+### Upgrading an existing database
+Tables created before this change used `decimal(10,2)` and defaulted to
+`INR`. `CREATE TABLE IF NOT EXISTS` won't retroactively fix that, so if
+your `tasks`/`usage` tables already exist, run once in the Supabase SQL
+editor:
+```sql
+ALTER TABLE tasks ALTER COLUMN cost TYPE decimal(10, 4);
+ALTER TABLE tasks ALTER COLUMN cost_currency SET DEFAULT 'USD';
+ALTER TABLE usage ALTER COLUMN cost TYPE decimal(10, 4);
+ALTER TABLE usage ALTER COLUMN cost_currency SET DEFAULT 'USD';
+```
+(`decimal(10,2)` rounds any cost under $0.005 to zero — real per-call
+costs are usually a fraction of a cent, so the wider precision matters.)
 
 ## How the app talks to these tables
 
