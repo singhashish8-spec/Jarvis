@@ -63,6 +63,68 @@ def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
     assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
 
 
+def test_set_credit_limit_saves_and_usage_reflects_it(client):
+    response = client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": 15.5}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert json.loads(response.data)["credit_limit_usd"] == 15.5
+
+    usage = json.loads(client.get("/api/usage").data)
+    assert usage["credit_limit_usd"] == 15.5
+
+
+def test_set_credit_limit_overrides_env_var(client, monkeypatch):
+    from src.config import config
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 5.0)
+    client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": 50.0}),
+        content_type="application/json",
+    )
+    usage = json.loads(client.get("/api/usage").data)
+    assert usage["credit_limit_usd"] == 50.0
+
+
+def test_set_credit_limit_null_clears_override(client):
+    client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": 20.0}),
+        content_type="application/json",
+    )
+    response = client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": None}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert json.loads(response.data)["credit_limit_usd"] is None
+
+    usage = json.loads(client.get("/api/usage").data)
+    assert usage["credit_limit_usd"] is None
+
+
+def test_set_credit_limit_rejects_negative(client):
+    response = client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": -5}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+def test_set_credit_limit_rejects_non_numeric(client):
+    response = client.post(
+        "/api/settings/credit-limit",
+        data=json.dumps({"credit_limit_usd": "not a number"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
 def test_brainstorm_endpoint(client, sample_brainstorm_input):
     response = client.post(
         "/api/agents/brainstorm",

@@ -115,6 +115,20 @@ def status_check():
     return jsonify(status), http_code
 
 
+def _get_credit_limit() -> float:
+    """Credit limit the dashboard tracks spend against. A value saved from
+    the dashboard's own settings UI (stored in the DB) takes precedence
+    over the REPLICATE_CREDIT_LIMIT_USD env var, so non-technical users
+    aren't required to touch Vercel/`.env` to set a budget."""
+    saved = db_client.get_setting("credit_limit_usd")
+    if saved:
+        try:
+            return float(saved)
+        except ValueError:
+            logger.error("Stored credit_limit_usd %r isn't a number", saved)
+    return config.REPLICATE_CREDIT_LIMIT_USD
+
+
 @app.route("/api/usage", methods=["GET"])
 def usage_check():
     """Live token usage and estimated spend, for the dashboard's usage
@@ -123,12 +137,14 @@ def usage_check():
     computed from each prediction's own reported token counts or compute
     time (see replicate_client.py), rolled up as tasks complete.
 
-    `credit_limit_usd` is whatever the user sets in REPLICATE_CREDIT_LIMIT_USD
-    to match what they've actually loaded on replicate.com/account/billing;
-    it's null (no bar shown) until set.
+    `credit_limit_usd` is a budget the user sets themselves (dashboard UI,
+    persisted via POST /api/settings/credit-limit, falling back to the
+    REPLICATE_CREDIT_LIMIT_USD env var) to match what they've actually
+    loaded on replicate.com/account/billing; it's null (no bar shown)
+    until set either way.
     """
     summary = db_client.get_usage_summary()
-    limit = config.REPLICATE_CREDIT_LIMIT_USD
+    limit = _get_credit_limit()
     summary["credit_limit_usd"] = limit
     summary["credit_remaining_usd"] = (
         round(limit - summary["estimated_cost_usd_total"], 4)
@@ -142,6 +158,42 @@ def usage_check():
         "figure."
     )
     return jsonify(summary), 200
+
+
+@app.route("/api/settings/credit-limit", methods=["POST"])
+def set_credit_limit():
+    """Lets the dashboard's usage widget save a budget without touching
+    Vercel env vars or `.env` — the intended path for the non-coder
+    audience this project is built for (see README's "For Non-Coders").
+    `{"credit_limit_usd": null}` clears the override back to whatever
+    REPLICATE_CREDIT_LIMIT_USD (if anything) is set to.
+    """
+    data = request.get_json(silent=True) or {}
+    raw = data.get("credit_limit_usd")
+
+    if raw is None:
+        value = None
+    else:
+        try:
+            value = float(raw)
+            if value < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise APIError(
+                "credit_limit_usd must be a non-negative number or null", 400
+            )
+
+    try:
+        db_client.set_setting("credit_limit_usd", "" if value is None else str(value))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to save credit limit: %s", exc)
+        raise APIError(
+            "Couldn't save — the database's `settings` table may not exist "
+            "yet. See docs/DATABASE.md.",
+            500,
+        )
+
+    return jsonify({"credit_limit_usd": value}), 200
 
 
 # ============================================
@@ -262,6 +314,15 @@ app.add_url_rule(
 # ============================================
 # ERROR HANDLERS
 # ============================================
+
+
+@app.errorhandler(APIError)
+def api_error(error):
+    """Catches APIError raised outside `_make_agent_route` (which has its
+    own try/except) — e.g. /api/settings/credit-limit — so those routes
+    don't need to duplicate that handling."""
+    body, code = handle_error(error)
+    return jsonify(body), code
 
 
 @app.errorhandler(404)

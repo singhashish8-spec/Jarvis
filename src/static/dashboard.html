@@ -133,6 +133,35 @@
     margin-bottom: 5px;
   }
   .usage-row .usage-label { color: var(--text-dim); }
+  .usage-cost-value {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .usage-edit-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-dimmer);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 3px;
+    border-radius: 4px;
+  }
+  .usage-edit-btn:hover { background: #333; color: var(--text); }
+  .usage-limit-input {
+    width: 90px;
+    background: none;
+    border: none;
+    outline: none;
+    border-bottom: 1px solid var(--text-dim);
+    color: var(--text);
+    font-size: 11px;
+    font-family: inherit;
+    text-align: right;
+    padding: 0;
+  }
   .usage-bar {
     height: 4px;
     border-radius: 2px;
@@ -649,9 +678,12 @@
         <span class="usage-label">Tokens today</span>
         <span id="usage-tokens">—</span>
       </div>
-      <div class="usage-row" id="usage-cost-row" style="display:none;">
+      <div class="usage-row" id="usage-cost-row">
         <span class="usage-label">Est. spend</span>
-        <span id="usage-cost">—</span>
+        <span class="usage-cost-value" id="usage-cost-value">
+          <span id="usage-cost">—</span>
+          <button class="usage-edit-btn" id="usage-edit-limit" title="Set a budget">✎</button>
+        </span>
       </div>
       <div class="usage-bar" id="usage-bar" style="display:none;">
         <div class="usage-bar-fill" id="usage-bar-fill"></div>
@@ -1314,6 +1346,8 @@ function formatTokenCount(n) {
   return String(n);
 }
 
+let currentCreditLimit = null;
+
 async function loadUsage() {
   try {
     const res = await fetch("/api/usage");
@@ -1324,29 +1358,90 @@ async function loadUsage() {
       " (" + formatTokenCount(body.tokens_used_total || 0) + " total)";
 
     const limit = body.credit_limit_usd;
+    currentCreditLimit = limit !== null && limit !== undefined ? limit : null;
     const spent = body.estimated_cost_usd_total || 0;
-    const costRow = document.getElementById("usage-cost-row");
     const bar = document.getElementById("usage-bar");
     const fill = document.getElementById("usage-bar-fill");
+    const costText = currentCreditLimit
+      ? "$" + spent.toFixed(4) + " / $" + currentCreditLimit.toFixed(2)
+      : "$" + spent.toFixed(4);
 
-    if (limit !== null && limit !== undefined && limit > 0) {
-      costRow.style.display = "flex";
+    renderUsageCostValue(costText);
+
+    if (currentCreditLimit) {
       bar.style.display = "block";
-      document.getElementById("usage-cost").textContent =
-        "$" + spent.toFixed(4) + " / $" + limit.toFixed(2);
-      const pct = Math.min(100, (spent / limit) * 100);
+      const pct = Math.min(100, (spent / currentCreditLimit) * 100);
       fill.style.width = pct + "%";
       fill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
     } else {
-      costRow.style.display = "flex";
       bar.style.display = "none";
-      document.getElementById("usage-cost").textContent = "$" + spent.toFixed(4);
     }
 
     document.getElementById("usage-widget").title = body.cost_note || "";
   } catch (err) {
     // best-effort UI polish only
   }
+}
+
+function renderUsageCostValue(costText) {
+  const wrap = document.getElementById("usage-cost-row").querySelector(".usage-cost-value, .usage-limit-input");
+  const replacement = document.createElement("span");
+  replacement.className = "usage-cost-value";
+  replacement.id = "usage-cost-value";
+  replacement.innerHTML =
+    '<span id="usage-cost">' + costText + '</span>' +
+    '<button class="usage-edit-btn" id="usage-edit-limit" title="Set a budget">✎</button>';
+  wrap.replaceWith(replacement);
+  replacement.querySelector("#usage-edit-limit").addEventListener("click", startEditCreditLimit);
+}
+
+function startEditCreditLimit() {
+  const wrap = document.getElementById("usage-cost-value");
+  const input = document.createElement("input");
+  input.type = "number";
+  input.inputMode = "decimal";
+  input.min = "0";
+  input.step = "0.01";
+  input.className = "usage-limit-input";
+  input.placeholder = "budget $";
+  input.value = currentCreditLimit != null ? currentCreditLimit : "";
+  wrap.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let cancelled = false;
+  const commit = async () => {
+    if (cancelled) return;
+    const raw = input.value.trim();
+    const value = raw === "" ? null : parseFloat(raw);
+    if (value !== null && (isNaN(value) || value < 0)) {
+      loadUsage();
+      return;
+    }
+    try {
+      const res = await fetch("/api/settings/credit-limit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credit_limit_usd: value }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(body.message || "Couldn't save budget.");
+      }
+    } catch (err) {
+      showToast("Couldn't save budget — network error.");
+    }
+    loadUsage();
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      input.blur();
+    } else if (e.key === "Escape") {
+      cancelled = true;
+      loadUsage();
+    }
+  });
+  input.addEventListener("blur", commit);
 }
 
 // ---- wiring ----

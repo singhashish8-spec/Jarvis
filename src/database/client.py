@@ -180,6 +180,26 @@ class DatabaseClient:
                 "estimated_cost_usd_total": 0.0,
             }
 
+    def get_setting(self, key: str) -> Optional[str]:
+        """Fetch a user-configurable setting (e.g. the credit-limit budget
+        set from the dashboard). None if unset or the table/DB is
+        unreachable — callers should fall back to an env-var default."""
+        try:
+            result = (
+                self.client.table("settings").select("value").eq("key", key).execute()
+            )
+            return result.data[0]["value"] if result.data else None
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to get setting %s: %s", key, exc)
+            return None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Persist a user-configurable setting. Unlike most writes in this
+        client, this one re-raises on failure — the dashboard's edit
+        action needs to know it didn't actually save (e.g. because the
+        `settings` table hasn't been created yet — see docs/DATABASE.md)."""
+        self.client.table("settings").upsert({"key": key, "value": value}).execute()
+
     def get_daily_cost(self, date_str: str) -> float:
         """Total cost (INR) of all tasks created on a given date (YYYY-MM-DD)."""
         try:

@@ -65,8 +65,9 @@ only returns username/type, nothing financial (confirmed against
 Replicate's own docs). Every number here is derived from what each
 prediction actually reports (token counts when the model provides them,
 compute time otherwise — see [AGENTS.md](AGENTS.md#cost-estimation)), and
-`credit_limit_usd` is a budget you set yourself via
-`REPLICATE_CREDIT_LIMIT_USD` to match what you've loaded on
+`credit_limit_usd` is a budget you set yourself (via the pencil icon next
+to "Est. spend" in the dashboard sidebar, or `REPLICATE_CREDIT_LIMIT_USD`
+as a fallback) to match what you've loaded on
 [replicate.com/account/billing](https://replicate.com/account/billing) —
 that page remains the authoritative source for your real balance.
 
@@ -83,9 +84,40 @@ that page remains the authoritative source for your real balance.
 }
 ```
 
-`credit_limit_usd` and `credit_remaining_usd` are `null` when
-`REPLICATE_CREDIT_LIMIT_USD` isn't set — the dashboard just shows tokens
+`credit_limit_usd` and `credit_remaining_usd` are `null` when no budget
+has been saved (dashboard or env var) — the dashboard just shows tokens
 and estimated spend with no budget bar in that case.
+
+---
+
+## `POST /api/settings/credit-limit`
+
+Saves the budget `GET /api/usage` tracks spend against, persisted in the
+database's `settings` table — this is what the dashboard's pencil-icon
+editor calls, so setting a budget doesn't require touching Vercel env
+vars or `.env`. A saved value takes precedence over
+`REPLICATE_CREDIT_LIMIT_USD`.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `credit_limit_usd` | number or `null` | yes | Non-negative. `null` clears the saved override, falling back to `REPLICATE_CREDIT_LIMIT_USD` if set. |
+
+```bash
+curl -X POST http://localhost:5000/api/settings/credit-limit \
+  -H "Content-Type: application/json" \
+  -d '{"credit_limit_usd": 10.0}'
+```
+
+**Response `200`**
+```json
+{"credit_limit_usd": 10.0}
+```
+
+**Response `400`** — `credit_limit_usd` missing, negative, or not a number.
+
+**Response `500`** — couldn't save, most likely because the `settings`
+table doesn't exist yet in your Supabase project (see
+[DATABASE.md](DATABASE.md)).
 
 ---
 

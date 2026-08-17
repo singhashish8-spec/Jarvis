@@ -135,3 +135,46 @@ def test_get_usage_summary_returns_zeros_on_error():
     summary = db.get_usage_summary()
     assert summary["tokens_used_today"] == 0
     assert summary["estimated_cost_usd_total"] == 0.0
+
+
+def test_get_setting_returns_value_when_present():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"value": "10.0"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    assert db.get_setting("credit_limit_usd") == "10.0"
+
+
+def test_get_setting_returns_none_when_absent():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    assert db.get_setting("credit_limit_usd") is None
+
+
+def test_get_setting_returns_none_on_db_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.get_setting("credit_limit_usd") is None
+
+
+def test_set_setting_upserts():
+    db, mock_supabase = _client_with_mocked_supabase()
+    db.set_setting("credit_limit_usd", "25.0")
+    mock_supabase.table.return_value.upsert.assert_called_with(
+        {"key": "credit_limit_usd", "value": "25.0"}
+    )
+
+
+def test_set_setting_raises_on_db_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("settings table doesn't exist")
+    with pytest.raises(Exception):
+        db.set_setting("credit_limit_usd", "25.0")

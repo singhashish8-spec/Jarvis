@@ -47,19 +47,41 @@ after every completed task: `calls_count`, `tokens_used`, and an estimated
 `cost` in USD. Backs the dashboard's live usage widget and the
 [`GET /api/usage`](API_SPEC.md#get-apiusage) endpoint.
 
+### `settings`
+Generic key/value store for user-configurable settings saved from the
+dashboard itself rather than an env var — currently just
+`credit_limit_usd`, written by
+[`POST /api/settings/credit-limit`](API_SPEC.md#post-apisettingscredit-limit)
+when you click the pencil icon next to "Est. spend" in the sidebar.
+
+| Column | Type | Notes |
+|---|---|---|
+| `key` | varchar(50) | primary key, e.g. `credit_limit_usd` |
+| `value` | text | stored as text regardless of the setting's real type |
+| `updated_at` | timestamptz | |
+
 ### Upgrading an existing database
 Tables created before this change used `decimal(10,2)` and defaulted to
-`INR`. `CREATE TABLE IF NOT EXISTS` won't retroactively fix that, so if
-your `tasks`/`usage` tables already exist, run once in the Supabase SQL
-editor:
+`INR`, and didn't have a `settings` table at all. `CREATE TABLE IF NOT
+EXISTS` won't retroactively fix the first two, so if your `tasks`/`usage`
+tables already exist, run once in the Supabase SQL editor:
 ```sql
 ALTER TABLE tasks ALTER COLUMN cost TYPE decimal(10, 4);
 ALTER TABLE tasks ALTER COLUMN cost_currency SET DEFAULT 'USD';
 ALTER TABLE usage ALTER COLUMN cost TYPE decimal(10, 4);
 ALTER TABLE usage ALTER COLUMN cost_currency SET DEFAULT 'USD';
+
+CREATE TABLE IF NOT EXISTS settings (
+    key VARCHAR(50) PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 (`decimal(10,2)` rounds any cost under $0.005 to zero — real per-call
-costs are usually a fraction of a cent, so the wider precision matters.)
+costs are usually a fraction of a cent, so the wider precision matters.
+The `settings` table needs to exist before the dashboard's budget editor
+will actually save — without it, `POST /api/settings/credit-limit`
+returns a `500` explaining exactly this.)
 
 ## How the app talks to these tables
 

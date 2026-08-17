@@ -69,6 +69,16 @@ def client(monkeypatch):
     )
     monkeypatch.setattr(r2_client, "save_task_output", lambda *args, **kwargs: True)
 
+    # Fake settings store, in-memory per test, so POST -> GET round trips
+    # (e.g. saving a credit limit) behave like the real DB without one.
+    fake_settings: dict = {}
+    monkeypatch.setattr(db_client, "get_setting", lambda key: fake_settings.get(key))
+    monkeypatch.setattr(
+        db_client,
+        "set_setting",
+        lambda key, value: fake_settings.__setitem__(key, value),
+    )
+
     mocked_run_result = {
         "output": "mocked model output",
         "usage": {
