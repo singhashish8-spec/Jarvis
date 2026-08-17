@@ -181,17 +181,20 @@
     font-family: inherit;
     padding: 0;
   }
+  .tab-chip .tab-rename,
   .tab-chip .tab-close {
     flex-shrink: 0;
     background: none;
     border: none;
     color: var(--text-dimmer);
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1;
     cursor: pointer;
     padding: 2px 3px;
     border-radius: 4px;
   }
+  .tab-chip .tab-close { font-size: 14px; }
+  .tab-chip .tab-rename:hover,
   .tab-chip .tab-close:hover { background: #333; color: var(--text); }
   .tab-add-btn {
     flex-shrink: 0;
@@ -863,16 +866,16 @@ function renderTabStrip() {
       agent.icon +
       '</span><span class="tab-title">' +
       escapeHtml(chat.title || "New chat") +
-      '</span><button class="tab-close">×</button>';
+      '</span><button class="tab-rename" title="Rename">✎</button><button class="tab-close" title="Close">×</button>';
     chip.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-close")) return;
+      if (e.target.closest(".tab-close") || e.target.closest(".tab-rename")) return;
       switchChat(id);
     });
     chip.querySelector(".tab-close").addEventListener("click", (e) => {
       e.stopPropagation();
       closeTab(id);
     });
-    chip.querySelector(".tab-title").addEventListener("dblclick", (e) => {
+    chip.querySelector(".tab-rename").addEventListener("click", (e) => {
       e.stopPropagation();
       startRenameTab(chip, chat);
     });
@@ -896,7 +899,9 @@ function startRenameTab(chip, chat) {
   input.focus();
   input.select();
 
+  let cancelled = false;
   const commit = () => {
+    if (cancelled) return;
     const val = input.value.trim();
     chat.title = val || "New chat";
     chat.titleIsCustom = true;
@@ -905,9 +910,10 @@ function startRenameTab(chip, chat) {
     renderSidebar();
   };
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") input.blur();
-    if (e.key === "Escape") {
-      chat.titleIsCustom = chat.titleIsCustom || false;
+    if (e.key === "Enter") {
+      input.blur();
+    } else if (e.key === "Escape") {
+      cancelled = true;
       renderTabStrip();
     }
   });
