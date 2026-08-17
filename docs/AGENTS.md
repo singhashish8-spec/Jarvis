@@ -8,6 +8,11 @@ All five agents below are **live** — they call real models on Replicate
 and cost a small amount per call (typically a fraction of a rupee to a
 few rupees, depending on response length). None are mock data anymore.
 
+The easiest way to try any of them is the dashboard at
+`http://localhost:5000` — a ChatGPT-style chat interface with an agent
+picker, so you don't need the curl examples below unless you're
+scripting or testing the API directly.
+
 ## Model choices
 
 | Agent | Model | Why this one |

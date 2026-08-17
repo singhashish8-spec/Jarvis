@@ -33,8 +33,9 @@ make setup      # creates venv, installs deps, walks you through .env
 make dev        # starts the API on http://localhost:5000
 ```
 
-Visit **http://localhost:5000** for the dashboard — pick an agent, fill in
-the form, run it. No curl required (though it still works, see below).
+Visit **http://localhost:5000** for the dashboard — a ChatGPT-style chat
+interface: pick an agent from the model-style picker, type a message, get
+a reply. No curl required (though it still works, see below).
 
 Full walkthrough (including creating your Replicate/Supabase/R2 accounts): [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
 

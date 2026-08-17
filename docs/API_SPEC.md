@@ -103,6 +103,7 @@ curl -X POST http://localhost:5000/api/agents/brainstorm \
 | `requirements` | string | yes | What the code should do |
 | `tech_stack` | string | no | Defaults to `Python` |
 | `style` | string | no | Any extra style guidance |
+| `context` | string | no | Prior conversation, for follow-ups like "now add error handling to that" |
 
 ```bash
 curl -X POST http://localhost:5000/api/agents/code \
@@ -130,6 +131,7 @@ curl -X POST http://localhost:5000/api/agents/test \
 |---|---|---|---|
 | `change_summary` | string | yes | What's being deployed |
 | `target` | string | no | Defaults to `Vercel` |
+| `context` | string | no | Prior conversation, for follow-up requests |
 
 Drafts a deployment checklist — does not execute a real deployment.
 

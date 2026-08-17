@@ -58,8 +58,9 @@ URL: http://localhost:5000
 
 ## Step 4: Verify it works
 
-Open **http://localhost:5000** in a browser — that's the dashboard. Pick an
-agent from the tabs, fill in the form, and run it.
+Open **http://localhost:5000** in a browser — that's the dashboard, a
+ChatGPT-style chat interface. Pick an agent from the picker at the top
+(works like ChatGPT's model selector), type a message, and send it.
 
 Or, from another terminal:
 
