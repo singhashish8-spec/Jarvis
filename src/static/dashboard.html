@@ -33,8 +33,12 @@
 
   .app {
     display: flex;
-    height: 100dvh;
+    /* 100vh first as a fallback for browsers without dvh support; 100dvh
+       second so it wins where supported — dvh shrinks with the on-screen
+       keyboard, vh doesn't, so the wrong order left the composer hidden
+       behind the keyboard on mobile. */
     height: 100vh;
+    height: 100dvh;
   }
 
   /* ---------- Sidebar ---------- */
