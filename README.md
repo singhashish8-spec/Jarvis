@@ -33,11 +33,8 @@ make setup      # creates venv, installs deps, walks you through .env
 make dev        # starts the API on http://localhost:5000
 ```
 
-In another terminal:
-
-```bash
-curl http://localhost:5000/health
-```
+Visit **http://localhost:5000** for the dashboard — pick an agent, fill in
+the form, run it. No curl required (though it still works, see below).
 
 Full walkthrough (including creating your Replicate/Supabase/R2 accounts): [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
 

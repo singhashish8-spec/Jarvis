@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #151822;
+    --panel-2: #1c1f2b;
+    --border: #2a2e3d;
+    --text: #e8e9ee;
+    --text-dim: #9aa0b4;
+    --accent: #7c9cff;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 40px;
+  }
+  header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+
+  .status-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab.active {
+    background: var(--accent);
+    color: #0b0d12;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 16px;
+  }
+  .panel .desc {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 12px 0 6px;
+  }
+  label .req { color: var(--warn); }
+  input[type="text"], textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, monospace; }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  button.submit {
+    margin-top: 16px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #0b0d12;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.submit:disabled { opacity: 0.6; cursor: default; }
+
+  .result {
+    margin-top: 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    display: none;
+  }
+  .result.show { display: block; }
+  .result-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .result pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .result.error pre { border-color: var(--bad); color: var(--bad); }
+
+  .thinking {
+    display: none;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    align-items: center;
+    gap: 8px;
+  }
+  .thinking.show { display: flex; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .history {
+    margin-top: 24px;
+  }
+  .history h3 {
+    font-size: 13px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .history-item {
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .history-item .agent-badge {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .history-item .snippet {
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .empty-hint {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>JARVIS<span>.</span></h1>
+  <div class="subtitle">Your AI agent team — pick one, give it a task.</div>
+  <div class="status-row" id="status-row">
+    <div class="status-item"><span class="dot" id="dot-database"></span>Database</div>
+    <div class="status-item"><span class="dot" id="dot-replicate"></span>Replicate</div>
+    <div class="status-item"><span class="dot" id="dot-storage"></span>Storage</div>
+  </div>
+</header>
+
+<main>
+  <div class="tabs" id="tabs"></div>
+
+  <div class="panel">
+    <h2 id="agent-title"></h2>
+    <div class="desc" id="agent-desc"></div>
+    <form id="agent-form"></form>
+    <div class="thinking" id="thinking">
+      <div class="spinner"></div>
+      <span id="thinking-text">Thinking…</span>
+    </div>
+    <div class="result" id="result">
+      <div class="result-meta">
+        <span id="result-task-id"></span>
+        <span id="result-time"></span>
+      </div>
+      <pre id="result-output"></pre>
+    </div>
+  </div>
+
+  <div class="history">
+    <h3>Recent (this session)</h3>
+    <div id="history-list"><div class="empty-hint">Nothing yet — try an agent above.</div></div>
+  </div>
+</main>
+
+<script>
+const AGENTS = [
+  {
+    id: "brainstorm", label: "Brainstorm", endpoint: "/api/agents/brainstorm",
+    desc: "Ideas, options, and strategy recommendations. (Llama 3 70B)",
+    fields: [
+      { name: "topic", label: "Topic", type: "text", required: true },
+      { name: "context", label: "Context", type: "text" },
+      { name: "style", label: "Style", type: "select", options: ["detailed", "concise", "bullet_points"] },
+    ],
+  },
+  {
+    id: "coder", label: "Coder", endpoint: "/api/agents/code",
+    desc: "Generates working code from a plain-language requirement. (DeepSeek-Coder 33B)",
+    fields: [
+      { name: "requirements", label: "Requirements", type: "textarea", required: true },
+      { name: "tech_stack", label: "Tech stack", type: "text", placeholder: "Python" },
+      { name: "style", label: "Style", type: "text" },
+    ],
+  },
+  {
+    id: "tester", label: "Tester", endpoint: "/api/agents/test",
+    desc: "Writes test cases for a piece of code. (Llama 3 70B)",
+    fields: [
+      { name: "code", label: "Code", type: "textarea", required: true },
+      { name: "description", label: "Description", type: "text" },
+      { name: "framework", label: "Framework", type: "text", placeholder: "pytest" },
+    ],
+  },
+  {
+    id: "deployer", label: "Deployer", endpoint: "/api/agents/deploy",
+    desc: "Drafts a deployment checklist. Does not run a real deployment. (Mistral 7B)",
+    fields: [
+      { name: "change_summary", label: "What's being deployed", type: "textarea", required: true },
+      { name: "target", label: "Target", type: "text", placeholder: "Vercel" },
+    ],
+  },
+  {
+    id: "document", label: "Document", endpoint: "/api/agents/document",
+    desc: "Writes documentation, docstrings, or explanations. (Llama 3 70B)",
+    fields: [
+      { name: "subject", label: "Subject", type: "text", required: true },
+      { name: "content", label: "Source material / context", type: "textarea" },
+      { name: "doc_type", label: "Doc type", type: "text", placeholder: "README section" },
+    ],
+  },
+  {
+    id: "qa", label: "QA", endpoint: "/api/agents/qa",
+    desc: "Reviews code for bugs, style, and security issues. (DeepSeek-Coder 33B)",
+    fields: [
+      { name: "code", label: "Code", type: "textarea", required: true },
+      { name: "context", label: "Context", type: "text" },
+    ],
+  },
+];
+
+const history = [];
+let activeAgent = AGENTS[0];
+
+function renderTabs() {
+  const tabs = document.getElementById("tabs");
+  tabs.innerHTML = "";
+  AGENTS.forEach((agent) => {
+    const btn = document.createElement("button");
+    btn.className = "tab" + (agent.id === activeAgent.id ? " active" : "");
+    btn.textContent = agent.label;
+    btn.onclick = () => {
+      activeAgent = agent;
+      renderTabs();
+      renderForm();
+      hideResult();
+    };
+    tabs.appendChild(btn);
+  });
+}
+
+function renderForm() {
+  document.getElementById("agent-title").textContent = activeAgent.label + " Agent";
+  document.getElementById("agent-desc").textContent = activeAgent.desc;
+
+  const form = document.getElementById("agent-form");
+  form.innerHTML = "";
+
+  activeAgent.fields.forEach((field) => {
+    const label = document.createElement("label");
+    label.innerHTML = field.label + (field.required ? ' <span class="req">*</span>' : "");
+    form.appendChild(label);
+
+    let input;
+    if (field.type === "textarea") {
+      input = document.createElement("textarea");
+    } else if (field.type === "select") {
+      input = document.createElement("select");
+      field.options.forEach((opt) => {
+        const o = document.createElement("option");
+        o.value = opt;
+        o.textContent = opt;
+        input.appendChild(o);
+      });
+    } else {
+      input = document.createElement("input");
+      input.type = "text";
+    }
+    input.name = field.name;
+    if (field.placeholder) input.placeholder = field.placeholder;
+    form.appendChild(input);
+  });
+
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "submit";
+  submit.textContent = "Run " + activeAgent.label;
+  form.appendChild(submit);
+
+  form.onsubmit = handleSubmit;
+}
+
+function hideResult() {
+  document.getElementById("result").classList.remove("show");
+}
+
+async function handleSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = form.querySelector("button.submit");
+  const data = {};
+  activeAgent.fields.forEach((field) => {
+    const val = form.elements[field.name].value.trim();
+    if (val) data[field.name] = val;
+  });
+
+  if (activeAgent.fields.some((f) => f.required && !data[f.name])) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  hideResult();
+  const thinking = document.getElementById("thinking");
+  const thinkingText = document.getElementById("thinking-text");
+  thinking.classList.add("show");
+
+  const start = Date.now();
+  const timer = setInterval(() => {
+    const secs = Math.round((Date.now() - start) / 1000);
+    let note = "";
+    if (secs > 15) note = " — some models take 60-90s on their first call after a while idle";
+    thinkingText.textContent = "Thinking… " + secs + "s" + note;
+  }, 1000);
+
+  try {
+    const res = await fetch(activeAgent.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    const resultEl = document.getElementById("result");
+    resultEl.classList.toggle("error", !res.ok);
+    resultEl.classList.add("show");
+
+    if (res.ok) {
+      document.getElementById("result-task-id").textContent = "task: " + body.task_id;
+      document.getElementById("result-output").textContent = body.output;
+      history.unshift({ agent: activeAgent.label, snippet: body.output, full: body.output, taskId: body.task_id });
+    } else {
+      document.getElementById("result-task-id").textContent = body.error || "Error";
+      document.getElementById("result-output").textContent = body.message || "Something went wrong.";
+    }
+    document.getElementById("result-time").textContent = elapsed + "s";
+    renderHistory();
+  } catch (err) {
+    const resultEl = document.getElementById("result");
+    resultEl.classList.add("show", "error");
+    document.getElementById("result-task-id").textContent = "Network error";
+    document.getElementById("result-output").textContent = String(err);
+  } finally {
+    clearInterval(timer);
+    thinking.classList.remove("show");
+    submitBtn.disabled = false;
+  }
+}
+
+function renderHistory() {
+  const list = document.getElementById("history-list");
+  if (history.length === 0) {
+    list.innerHTML = '<div class="empty-hint">Nothing yet — try an agent above.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  history.slice(0, 10).forEach((item) => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+    div.innerHTML =
+      '<div class="agent-badge">' + item.agent + '</div><div class="snippet">' +
+      item.snippet.replace(/</g, "&lt;").slice(0, 90) + "</div>";
+    div.onclick = () => {
+      document.getElementById("result").classList.add("show");
+      document.getElementById("result-task-id").textContent = "task: " + item.taskId;
+      document.getElementById("result-output").textContent = item.full;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    list.appendChild(div);
+  });
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch("/status");
+    const body = await res.json();
+    Object.entries(body.components || {}).forEach(([name, state]) => {
+      const dot = document.getElementById("dot-" + name);
+      if (dot) dot.className = "dot " + (state === "healthy" ? "ok" : "bad");
+    });
+  } catch (err) {
+    // status is best-effort UI polish; a failed check just leaves dots grey
+  }
+}
+
+renderTabs();
+renderForm();
+loadStatus();
+</script>
+
+</body>
+</html>

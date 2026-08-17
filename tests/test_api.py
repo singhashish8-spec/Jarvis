@@ -5,6 +5,13 @@ offline and cost nothing."""
 import json
 
 
+def test_dashboard_serves_html(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"JARVIS" in response.data
+    assert response.content_type.startswith("text/html")
+
+
 def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200

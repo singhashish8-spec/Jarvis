@@ -58,7 +58,10 @@ URL: http://localhost:5000
 
 ## Step 4: Verify it works
 
-In another terminal:
+Open **http://localhost:5000** in a browser — that's the dashboard. Pick an
+agent from the tabs, fill in the form, and run it.
+
+Or, from another terminal:
 
 ```bash
 curl http://localhost:5000/health

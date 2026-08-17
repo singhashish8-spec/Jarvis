@@ -52,6 +52,18 @@ except Exception as exc:
 
 
 # ============================================
+# DASHBOARD
+# ============================================
+
+
+@app.route("/", methods=["GET"])
+def dashboard():
+    """Serves the web dashboard — a plain HTML/JS page (no build step,
+    no Node/npm dependency) so `make dev` alone is enough to use it."""
+    return app.send_static_file("dashboard.html")
+
+
+# ============================================
 # HEALTH & STATUS
 # ============================================
 
