@@ -78,3 +78,42 @@ class R2Client:
         """Back up a task's output under work/<task_id>.json, for
         analysis/backup independent of the database."""
         return self.upload_json(f"work/{task_id}.json", output)
+
+    def get_storage_stats(self, max_objects: int = 5000) -> Dict[str, Any]:
+        """Total size and object count in the bucket, for the dashboard's
+        usage popover. R2 (like S3) has no single "bucket size" call —
+        this pages through `list_objects_v2` and sums each object's
+        `Size`, capped at `max_objects` so a very large bucket can't make
+        a sidebar popover hang.
+
+        Best-effort like `health_check()`: storage stats are a
+        nice-to-have display, not on the critical path of saving a task,
+        so a failure here degrades to zeros rather than raising.
+        """
+        total_bytes = 0
+        object_count = 0
+        truncated = False
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket_name):
+                for obj in page.get("Contents", []):
+                    total_bytes += obj["Size"]
+                    object_count += 1
+                    if object_count >= max_objects:
+                        truncated = True
+                        break
+                if truncated:
+                    break
+            return {
+                "total_bytes": total_bytes,
+                "object_count": object_count,
+                "truncated": truncated,
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to get R2 storage stats: %s", exc)
+            return {
+                "total_bytes": 0,
+                "object_count": 0,
+                "truncated": False,
+                "error": str(exc),
+            }

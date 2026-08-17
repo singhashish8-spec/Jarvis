@@ -137,6 +137,44 @@ def test_get_usage_summary_returns_zeros_on_error():
     assert summary["estimated_cost_usd_total"] == 0.0
 
 
+def test_get_usage_by_agent_today_returns_todays_rows():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [
+        {"agent_type": "brainstorm", "tokens_used": 100, "cost": 0.01},
+        {"agent_type": "coder", "tokens_used": 50, "cost": 0.005},
+    ]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+    rows = db.get_usage_by_agent_today()
+    assert rows == mock_execute.data
+
+
+def test_get_usage_by_agent_today_returns_empty_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.get_usage_by_agent_today() == []
+
+
+def test_get_table_counts_returns_count_per_table():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.count = 7
+    mock_supabase.table.return_value.select.return_value.execute.return_value = (
+        mock_execute
+    )
+    counts = db.get_table_counts()
+    assert counts == {"tasks": 7, "usage": 7, "skills": 7}
+
+
+def test_get_table_counts_zero_for_failing_table():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    counts = db.get_table_counts()
+    assert counts == {"tasks": 0, "usage": 0, "skills": 0}
+
+
 def test_delete_task_returns_true_on_success():
     db, mock_supabase = _client_with_mocked_supabase()
     mock_supabase.table.return_value.delete.return_value.eq.return_value.execute.return_value = (
