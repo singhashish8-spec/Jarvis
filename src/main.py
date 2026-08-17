@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 
 load_dotenv()
@@ -26,6 +26,7 @@ from src.agents.document_agent import DocumentAgent  # noqa: E402
 from src.agents.qa_agent import QAAgent  # noqa: E402
 from src.agents.tester_agent import TesterAgent  # noqa: E402
 from src.config import config  # noqa: E402
+from src.connectors.dropbox_client import DropboxClient  # noqa: E402
 from src.database.client import DatabaseClient  # noqa: E402
 from src.settings import is_agent_enabled, resolve_agent_settings  # noqa: E402
 from src.settings_schema import (  # noqa: E402
@@ -51,6 +52,7 @@ logger = setup_logger(__name__)
 try:
     db_client = DatabaseClient()
     r2_client = R2Client()
+    dropbox_client = DropboxClient()
     brainstorm_agent = BrainstormAgent()
     coder_agent = CoderAgent()
     tester_agent = TesterAgent()
@@ -250,6 +252,117 @@ def storage_check():
         ),
         200,
     )
+
+
+# ============================================
+# CONNECTORS — Dropbox
+# ============================================
+# The first real connector; Drive/Slack/GitHub stay placeholders (see
+# CONNECTORS in dashboard.html). Tokens live in the `settings` table
+# under keys deliberately left out of SETTINGS_SCHEMA, so they never
+# surface through GET /api/settings.
+
+DROPBOX_TOKEN_SETTING = "dropbox_refresh_token"
+DROPBOX_EMAIL_SETTING = "dropbox_account_email"
+
+
+def _dropbox_redirect_uri() -> str:
+    return request.url_root.rstrip("/") + "/api/connectors/dropbox/callback"
+
+
+def _dropbox_access_token() -> str:
+    """Exchanges the stored refresh token for a fresh access token.
+    Never caches the access token — Vercel's serverless functions
+    don't reliably keep process memory between requests."""
+    refresh_token = db_client.get_setting(DROPBOX_TOKEN_SETTING)
+    if not refresh_token:
+        raise APIError("Dropbox isn't connected.", 400)
+    try:
+        return dropbox_client.refresh_access_token(refresh_token)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Dropbox token refresh failed: %s", exc)
+        raise APIError("Couldn't reach Dropbox — try reconnecting.", 502)
+
+
+@app.route("/api/connectors/dropbox/status", methods=["GET"])
+def dropbox_status():
+    refresh_token = db_client.get_setting(DROPBOX_TOKEN_SETTING)
+    return (
+        jsonify(
+            {
+                "configured": dropbox_client.is_configured(),
+                "connected": bool(refresh_token),
+                "account_email": (
+                    db_client.get_setting(DROPBOX_EMAIL_SETTING)
+                    if refresh_token
+                    else None
+                ),
+            }
+        ),
+        200,
+    )
+
+
+@app.route("/api/connectors/dropbox/authorize", methods=["GET"])
+def dropbox_authorize():
+    if not dropbox_client.is_configured():
+        raise APIError(
+            "Dropbox isn't configured yet — DROPBOX_APP_KEY / DROPBOX_APP_SECRET aren't "
+            "set. See docs/SETTINGS.md#connectors--mcp.",
+            400,
+        )
+    return redirect(dropbox_client.get_authorize_url(_dropbox_redirect_uri()))
+
+
+@app.route("/api/connectors/dropbox/callback", methods=["GET"])
+def dropbox_callback():
+    if request.args.get("error") or not request.args.get("code"):
+        return redirect("/?connector=dropbox&status=error")
+    try:
+        tokens = dropbox_client.exchange_code(
+            request.args["code"], _dropbox_redirect_uri()
+        )
+        email = dropbox_client.get_account_email(tokens["access_token"])
+        db_client.set_setting(DROPBOX_TOKEN_SETTING, tokens["refresh_token"])
+        db_client.set_setting(DROPBOX_EMAIL_SETTING, email or "")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Dropbox OAuth callback failed: %s", exc)
+        return redirect("/?connector=dropbox&status=error")
+    return redirect("/?connector=dropbox&status=connected")
+
+
+@app.route("/api/connectors/dropbox/disconnect", methods=["POST"])
+def dropbox_disconnect():
+    db_client.set_setting(DROPBOX_TOKEN_SETTING, "")
+    db_client.set_setting(DROPBOX_EMAIL_SETTING, "")
+    return jsonify({"disconnected": True}), 200
+
+
+@app.route("/api/connectors/dropbox/files", methods=["GET"])
+def dropbox_files():
+    path = request.args.get("path", "")
+    access_token = _dropbox_access_token()
+    try:
+        entries = dropbox_client.list_folder(access_token, path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Dropbox list_folder failed: %s", exc)
+        raise APIError("Couldn't list that Dropbox folder.", 502)
+    return jsonify({"path": path, "entries": entries}), 200
+
+
+@app.route("/api/connectors/dropbox/pull", methods=["POST"])
+def dropbox_pull():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path")
+    if not path:
+        raise APIError("path is required", 400)
+    access_token = _dropbox_access_token()
+    try:
+        content = dropbox_client.download_file_text(access_token, path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Dropbox download failed: %s", exc)
+        raise APIError("Couldn't download that file from Dropbox.", 502)
+    return jsonify({"path": path, "content": content}), 200
 
 
 def _save_setting(key: str, raw_value: Any) -> str:
