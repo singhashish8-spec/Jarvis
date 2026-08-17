@@ -198,6 +198,41 @@ class DatabaseClient:
             logger.error("Failed to get today's usage by agent: %s", exc)
             return []
 
+    def get_agent_cost_stats(self, agent_type: str, days: int = 30) -> Dict[str, Any]:
+        """Real average cost-per-call and calls-per-week for one agent,
+        computed from actual `tasks.cost`/`created_at` history over the
+        trailing `days` — what the Agent Defaults cost simulator
+        projects a max-tokens change from, rather than a fabricated
+        per-model cost multiplier Jarvis has no data to back up."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        try:
+            result = (
+                self.client.table("tasks")
+                .select("cost")
+                .eq("agent_type", agent_type)
+                .gte("created_at", cutoff)
+                .execute()
+            )
+            rows = result.data or []
+            call_count = len(rows)
+            total_cost = sum(float(r.get("cost") or 0) for r in rows)
+            return {
+                "call_count": call_count,
+                "avg_cost_per_call": (
+                    round(total_cost / call_count, 6) if call_count else 0.0
+                ),
+                "calls_per_week": round(call_count / days * 7, 3),
+                "days_sampled": days,
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to get cost stats for %s: %s", agent_type, exc)
+            return {
+                "call_count": 0,
+                "avg_cost_per_call": 0.0,
+                "calls_per_week": 0.0,
+                "days_sampled": days,
+            }
+
     def get_table_counts(self) -> Dict[str, int]:
         """Row counts for the tables the dashboard's storage popover
         shows — not disk bytes (Postgres only exposes that via a raw SQL

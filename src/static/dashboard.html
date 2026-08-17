@@ -2255,6 +2255,7 @@ async function renderAgentDefaultsCategory(content) {
             <tbody>${rows}</tbody>
           </table>
         </div>
+        <div class="settings-hint" id="cost-simulator-hint">Change a max-tokens value above to see its estimated weekly cost impact.</div>
         <div class="settings-save-row">
           <button class="settings-btn primary" id="save-agent-config-btn">Save agent defaults</button>
         </div>
@@ -2262,8 +2263,56 @@ async function renderAgentDefaultsCategory(content) {
     `;
     inner.querySelector("#agent-config-info-btn").addEventListener("click", () => toggleInfoNote("agent_config"));
     inner.querySelector("#save-agent-config-btn").addEventListener("click", saveAgentConfigMatrix);
+    inner.querySelectorAll(".ac-max-tokens").forEach((input) => {
+      input.addEventListener("input", () => debounceSimulateCost(input));
+    });
+    inner.querySelectorAll(".ac-model").forEach((select) => {
+      select.addEventListener("change", () => {
+        const hint = document.getElementById("cost-simulator-hint");
+        if (!hint) return;
+        hint.textContent = "Switching models changes Replicate's price per token — Jarvis doesn't have enough historical data broken out by model to project a number. Check Usage & Billing after you use it to see the real effect.";
+      });
+    });
   } catch (err) {
     showToast("Couldn't load agent defaults.");
+  }
+}
+
+let costSimulatorTimer = null;
+
+function debounceSimulateCost(input) {
+  clearTimeout(costSimulatorTimer);
+  costSimulatorTimer = setTimeout(() => simulateCost(input), 400);
+}
+
+async function simulateCost(input) {
+  const hint = document.getElementById("cost-simulator-hint");
+  if (!hint) return;
+  const row = input.closest("tr");
+  const agentId = row.getAttribute("data-agent");
+  const maxTokens = parseInt(input.value, 10);
+  if (!maxTokens || maxTokens < 1) {
+    hint.textContent = "Change a max-tokens value above to see its estimated weekly cost impact.";
+    return;
+  }
+  hint.textContent = "Estimating…";
+  try {
+    const res = await fetch(`/api/settings/cost-simulator?agent=${agentId}&max_tokens=${maxTokens}`);
+    const body = await res.json();
+    if (!res.ok) {
+      hint.textContent = body.message || "Couldn't estimate.";
+      return;
+    }
+    if (!body.has_data) {
+      hint.textContent = `No usage history yet for ${agentById(agentId).label} — the estimate will show once you've used it a few times.`;
+      return;
+    }
+    const p = body.projection;
+    const delta = p.weekly_projected - p.weekly_now;
+    const direction = delta < 0 ? "↓ saves" : delta > 0 ? "↑ adds" : "≈ no change to";
+    hint.innerHTML = `<strong>${agentById(agentId).label}:</strong> ~$${p.weekly_projected.toFixed(4)}/wk projected (was ~$${p.weekly_now.toFixed(4)}/wk) — ${direction} ~$${Math.abs(delta).toFixed(4)}/wk, based on ${body.sample.call_count} calls over the last ${body.sample.days_sampled} days. Estimate assumes reply length scales with the max-tokens ceiling — not exact.`;
+  } catch (err) {
+    hint.textContent = "Network error — couldn't estimate.";
   }
 }
 

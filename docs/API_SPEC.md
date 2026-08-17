@@ -362,6 +362,34 @@ ever touch the two controls that affect spend. Same response shape as
 **Response `200`**: `{"config": {...}}` (the full matrix after applying)
 **Response `404`**: unknown `preset_id`.
 
+### `GET /api/settings/cost-simulator?agent=<id>&max_tokens=<n>`
+
+Projects the weekly cost impact of a proposed `max_tokens` value for one agent, from that
+agent's real `tasks.cost` history over the trailing 30 days — never a fabricated number.
+Model changes aren't simulated (see `docs/SETTINGS.md#cost-simulator` for why).
+
+**Response `200`**
+```json
+{
+  "agent": "coder",
+  "current_max_tokens": 1024,
+  "proposed_max_tokens": 300,
+  "sample": {"call_count": 24, "avg_cost_per_call": 0.0034, "calls_per_week": 5.6, "days_sampled": 30},
+  "has_data": true,
+  "projection": {
+    "avg_cost_per_call_now": 0.0034,
+    "avg_cost_per_call_projected": 0.000996,
+    "weekly_now": 0.019,
+    "weekly_projected": 0.0056
+  }
+}
+```
+`projection` is `null` and `has_data` is `false` when there's no task history for that agent yet
+(a fresh install, or an agent that's never actually run) — the frontend shows "no usage history
+yet" rather than a zeroed-out number that looks authoritative.
+
+**Response `400`**: unknown `agent`, or `max_tokens` missing/not a whole number.
+
 ### `GET /api/tasks`
 
 Recent tasks for Data Controls' task browser. `?agent_type=` filters;

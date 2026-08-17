@@ -75,6 +75,18 @@ def client(monkeypatch):
         "get_table_counts",
         lambda: {"tasks": 0, "usage": 0, "skills": 0},
     )
+    # No usage history by default, matching a fresh install — the cost
+    # simulator degrades to "not enough data" until a test says otherwise.
+    monkeypatch.setattr(
+        db_client,
+        "get_agent_cost_stats",
+        lambda agent_type, days=30: {
+            "call_count": 0,
+            "avg_cost_per_call": 0.0,
+            "calls_per_week": 0.0,
+            "days_sampled": days,
+        },
+    )
     monkeypatch.setattr(
         r2_client,
         "get_storage_stats",

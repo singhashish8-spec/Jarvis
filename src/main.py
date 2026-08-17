@@ -691,6 +691,62 @@ def apply_preset(preset_id):
     return jsonify({"config": cleaned}), 200
 
 
+@app.route("/api/settings/cost-simulator", methods=["GET"])
+def cost_simulator():
+    """Projects the weekly cost impact of a proposed max_tokens value
+    for one agent, before you save it. Deliberately max_tokens only —
+    Replicate's per-model price isn't something Jarvis has separated
+    out historically (the `usage` table rolls up a whole day per
+    agent, blending whatever models ran that day), so this doesn't
+    fabricate a cost multiplier for model swaps. The projection itself
+    assumes output length scales roughly with the max-tokens ceiling —
+    a real simplification, not a guarantee — and is only as good as
+    how much real history exists for that agent."""
+    agent_id = request.args.get("agent")
+    valid_agent_ids = {a["id"] for a in AGENT_TYPES}
+    if agent_id not in valid_agent_ids:
+        raise APIError(f"agent must be one of {sorted(valid_agent_ids)}", 400)
+
+    try:
+        proposed_max_tokens = int(request.args["max_tokens"])
+    except (KeyError, TypeError, ValueError):
+        raise APIError("max_tokens must be a whole number", 400)
+
+    current_cfg = _load_agent_config().get(agent_id, {})
+    current_max_tokens = (
+        current_cfg.get("max_tokens") or AGENT_BUILTIN_DEFAULTS[agent_id]["max_tokens"]
+    )
+
+    stats = db_client.get_agent_cost_stats(agent_id)
+    has_data = stats["call_count"] > 0 and current_max_tokens > 0
+
+    projection = None
+    if has_data:
+        scale = proposed_max_tokens / current_max_tokens
+        avg_now = stats["avg_cost_per_call"]
+        avg_projected = round(avg_now * scale, 6)
+        projection = {
+            "avg_cost_per_call_now": avg_now,
+            "avg_cost_per_call_projected": avg_projected,
+            "weekly_now": round(avg_now * stats["calls_per_week"], 4),
+            "weekly_projected": round(avg_projected * stats["calls_per_week"], 4),
+        }
+
+    return (
+        jsonify(
+            {
+                "agent": agent_id,
+                "current_max_tokens": current_max_tokens,
+                "proposed_max_tokens": proposed_max_tokens,
+                "sample": stats,
+                "has_data": has_data,
+                "projection": projection,
+            }
+        ),
+        200,
+    )
+
+
 @app.route("/api/tasks", methods=["GET"])
 def list_tasks_endpoint():
     """Recent tasks for the dashboard's Data Controls task browser.
