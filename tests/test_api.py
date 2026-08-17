@@ -259,6 +259,176 @@ def test_dropbox_pull_returns_file_content(client, monkeypatch):
     assert data["content"] == "file contents here"
 
 
+# ---- GitHub connector ----
+
+
+def test_github_status_not_configured_by_default(client):
+    response = client.get("/api/connectors/github/status")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data == {"configured": False, "connected": False, "account_login": None}
+
+
+def test_github_status_connected(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    monkeypatch.setattr(github_client, "is_configured", lambda: True)
+    db_client.set_setting("github_access_token", "gho_at")
+    db_client.set_setting("github_account_login", "someuser")
+
+    response = client.get("/api/connectors/github/status")
+    data = json.loads(response.data)
+    assert data == {"configured": True, "connected": True, "account_login": "someuser"}
+
+
+def test_github_authorize_rejects_when_not_configured(client):
+    response = client.get("/api/connectors/github/authorize")
+    assert response.status_code == 400
+
+
+def test_github_authorize_redirects_when_configured(client, monkeypatch):
+    from src.main import github_client
+
+    monkeypatch.setattr(github_client, "is_configured", lambda: True)
+    response = client.get("/api/connectors/github/authorize")
+    assert response.status_code == 302
+    assert "github.com/login/oauth/authorize" in response.headers["Location"]
+
+
+def test_github_callback_saves_token_and_redirects(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    monkeypatch.setattr(
+        github_client,
+        "exchange_code",
+        lambda code, redirect_uri: {"access_token": "gho_at"},
+    )
+    monkeypatch.setattr(
+        github_client, "get_account_login", lambda access_token: "someuser"
+    )
+
+    response = client.get("/api/connectors/github/callback?code=abc123")
+    assert response.status_code == 302
+    assert "status=connected" in response.headers["Location"]
+    assert db_client.get_setting("github_access_token") == "gho_at"
+    assert db_client.get_setting("github_account_login") == "someuser"
+
+
+def test_github_callback_handles_denied_access(client):
+    response = client.get("/api/connectors/github/callback?error=access_denied")
+    assert response.status_code == 302
+    assert "status=error" in response.headers["Location"]
+
+
+def test_github_callback_handles_exchange_failure(client, monkeypatch):
+    from src.main import github_client
+
+    def _boom(code, redirect_uri):
+        raise RuntimeError("network error")
+
+    monkeypatch.setattr(github_client, "exchange_code", _boom)
+    response = client.get("/api/connectors/github/callback?code=abc123")
+    assert response.status_code == 302
+    assert "status=error" in response.headers["Location"]
+
+
+def test_github_disconnect_clears_stored_token(client):
+    from src.main import db_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    db_client.set_setting("github_account_login", "someuser")
+
+    response = client.post("/api/connectors/github/disconnect")
+    assert response.status_code == 200
+    assert db_client.get_setting("github_access_token") == ""
+
+    status = json.loads(client.get("/api/connectors/github/status").data)
+    assert status["connected"] is False
+
+
+def test_github_repos_requires_connection(client):
+    response = client.get("/api/connectors/github/repos")
+    assert response.status_code == 400
+
+
+def test_github_repos_lists_when_connected(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    monkeypatch.setattr(
+        github_client,
+        "list_repos",
+        lambda access_token: [
+            {"full_name": "someuser/jarvis", "private": True, "default_branch": "main"}
+        ],
+    )
+
+    response = client.get("/api/connectors/github/repos")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["repos"][0]["full_name"] == "someuser/jarvis"
+
+
+def test_github_files_requires_repo(client):
+    from src.main import db_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    response = client.get("/api/connectors/github/files")
+    assert response.status_code == 400
+
+
+def test_github_files_requires_connection(client):
+    response = client.get("/api/connectors/github/files?repo=someuser/jarvis")
+    assert response.status_code == 400
+
+
+def test_github_files_lists_entries_when_connected(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    monkeypatch.setattr(
+        github_client,
+        "list_path",
+        lambda access_token, repo, path="": [
+            {"name": "README.md", "path": "README.md", "is_folder": False, "size": 512}
+        ],
+    )
+
+    response = client.get("/api/connectors/github/files?repo=someuser/jarvis")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["entries"][0]["name"] == "README.md"
+
+
+def test_github_pull_requires_repo_and_path(client):
+    from src.main import db_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    response = client.post(
+        "/api/connectors/github/pull", json={"repo": "someuser/jarvis"}
+    )
+    assert response.status_code == 400
+
+
+def test_github_pull_returns_file_content(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    monkeypatch.setattr(
+        github_client,
+        "download_file_text",
+        lambda access_token, repo, path: "file contents here",
+    )
+
+    response = client.post(
+        "/api/connectors/github/pull",
+        json={"repo": "someuser/jarvis", "path": "README.md"},
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["content"] == "file contents here"
+
+
 def test_set_credit_limit_saves_and_usage_reflects_it(client):
     response = client.post(
         "/api/settings/credit-limit",

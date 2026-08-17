@@ -176,6 +176,64 @@ input tokens, same as pasting anything else by hand.
 
 ---
 
+## Connectors — GitHub
+
+Same idea as Dropbox, one level deeper (repos, then files within one).
+Requires `GITHUB_OAUTH_CLIENT_ID`/`GITHUB_OAUTH_CLIENT_SECRET` — see
+`.env.example`. Classic OAuth App tokens don't expire, so the access
+token from the code exchange is stored and reused directly — no
+refresh step like Dropbox's.
+
+### `GET /api/connectors/github/status`
+
+```json
+{"configured": true, "connected": true, "account_login": "yourname"}
+```
+
+### `GET /api/connectors/github/authorize`
+
+`302` redirect into GitHub's OAuth consent screen (`scope=repo`,
+covering private repos). `400` if not configured.
+
+### `GET /api/connectors/github/callback`
+
+Exchanges the code for an access token, stores it, and redirects to
+`/?connector=github&status=connected` (or `status=error`).
+
+### `POST /api/connectors/github/disconnect`
+
+Clears the stored access token. `{"disconnected": true}`.
+
+### `GET /api/connectors/github/repos`
+
+Your repos (owned + collaborator), most recently pushed first, capped
+at 100. `400` if not connected.
+```json
+{"repos": [{"full_name": "you/jarvis", "private": true, "default_branch": "main"}]}
+```
+
+### `GET /api/connectors/github/files?repo=<owner/name>&path=<path>`
+
+Lists one directory's immediate children in that repo (`path=""` is
+the repo root). `400` if `repo` is missing or not connected; `502` if
+GitHub itself errors.
+```json
+{"repo": "you/jarvis", "path": "src", "entries": [{"name": "main.py", "path": "src/main.py", "is_folder": false, "size": 4200}]}
+```
+
+### `POST /api/connectors/github/pull`
+
+Body: `{"repo": "you/jarvis", "path": "src/main.py"}`. Downloads that
+file's raw content, capped at ~200KB (~50k tokens). `400` if `repo`/
+`path` is missing or not connected; `502` on a GitHub-side failure.
+```json
+{"repo": "you/jarvis", "path": "src/main.py", "content": "..."}
+```
+Same cost note as Dropbox's pull — copied to your clipboard, not
+injected into any prompt.
+
+---
+
 ## `POST /api/settings/credit-limit`
 
 Saves the budget `GET /api/usage` tracks spend against, persisted in the

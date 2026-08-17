@@ -1952,13 +1952,6 @@ const CONNECTORS = [
       "call already finished, the same way Webhooks does.",
   },
   {
-    icon: "🐙", name: "GitHub", badge: "Coming soon",
-    desc: "Let Coder/QA read real files from a repo instead of pasted code.",
-    note: "Not built yet. Cloud-to-cloud via GitHub's API. Reading a file is free; feeding a " +
-      "large file into Coder or QA's prompt afterward adds input tokens the same way pasting " +
-      "it by hand would.",
-  },
-  {
     icon: "🖥️", name: "PyRevit / Local PC & Home Server", badge: "Needs local bridge app",
     desc: "Pull live Revit model data into Brainstorm, Coder, or Document.",
     note: "Placeholder only — this is the one that's genuinely different from the others. " +
@@ -2659,6 +2652,7 @@ function renderConnectorsCategory(content) {
       actually gets stuffed into a prompt afterward counts as input.
     </div>
     <div id="dropbox-connector-card"><div class="settings-hint">Loading…</div></div>
+    <div id="github-connector-card"><div class="settings-hint">Loading…</div></div>
     ${CONNECTORS.map((c, i) => `
       <div class="connector-card">
         <span class="icon">${c.icon}</span>
@@ -2679,6 +2673,7 @@ function renderConnectorsCategory(content) {
     });
   });
   loadDropboxConnectorCard();
+  loadGitHubConnectorCard();
 }
 
 // ---- Dropbox connector (the one real one; the rest above stay placeholders) ----
@@ -2810,6 +2805,180 @@ async function pullDropboxFile(path, btn) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.message || "Couldn't pull that file.");
+      return;
+    }
+    await navigator.clipboard.writeText(body.content);
+    showToast("Copied — paste it into your message.");
+  } catch (err) {
+    showToast("Network error — couldn't pull that file.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// ---- GitHub connector (same shape as Dropbox, with a repo picker first) ----
+
+async function loadGitHubConnectorCard() {
+  const el = document.getElementById("github-connector-card");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/connectors/github/status");
+    const body = await res.json();
+
+    if (!body.configured) {
+      el.innerHTML = `
+        <div class="connector-card">
+          <span class="icon">🐙</span>
+          <div>
+            <div class="name">GitHub</div>
+            <div class="desc">Let Coder/QA read real files from a repo instead of pasted code.</div>
+          </div>
+          <span class="connector-badge">Needs setup</span>
+        </div>
+        <div class="settings-hint" style="margin:-4px 0 14px;">
+          Not configured yet — needs <code>GITHUB_OAUTH_CLIENT_ID</code> /
+          <code>GITHUB_OAUTH_CLIENT_SECRET</code> set as environment variables. See
+          docs/SETTINGS.md for the exact setup steps.
+        </div>
+      `;
+      return;
+    }
+
+    if (!body.connected) {
+      el.innerHTML = `
+        <div class="connector-card">
+          <span class="icon">🐙</span>
+          <div>
+            <div class="name">GitHub</div>
+            <div class="desc">Let Coder/QA read real files from a repo instead of pasted code.</div>
+          </div>
+          <button class="settings-btn primary" id="github-connect-btn">Connect</button>
+        </div>
+      `;
+      el.querySelector("#github-connect-btn").addEventListener("click", () => {
+        window.location.href = "/api/connectors/github/authorize";
+      });
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="connector-card" style="align-items:flex-start;">
+        <span class="icon">🐙</span>
+        <div style="flex:1;">
+          <div class="name">GitHub</div>
+          <div class="desc">Connected as ${escapeHtml(body.account_login || "")}</div>
+        </div>
+        <button class="settings-btn" id="github-disconnect-btn">Disconnect</button>
+      </div>
+      <div class="settings-field" style="margin-top:-6px;">
+        <div class="settings-field-label"><span>Browse</span></div>
+        <div id="github-browser"></div>
+      </div>
+    `;
+    el.querySelector("#github-disconnect-btn").addEventListener("click", disconnectGitHub);
+    loadGitHubRepoPicker();
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t reach the GitHub connector.</div>';
+  }
+}
+
+async function disconnectGitHub() {
+  try {
+    await fetch("/api/connectors/github/disconnect", { method: "POST" });
+    showToast("Disconnected from GitHub.");
+    loadGitHubConnectorCard();
+  } catch (err) {
+    showToast("Network error — couldn't disconnect.");
+  }
+}
+
+async function loadGitHubRepoPicker() {
+  const el = document.getElementById("github-browser");
+  if (!el) return;
+  el.innerHTML = '<div class="settings-hint">Loading repos…</div>';
+  try {
+    const res = await fetch("/api/connectors/github/repos");
+    const body = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="modal-empty">${escapeHtml(body.message || "Couldn't list repos.")}</div>`;
+      return;
+    }
+    const rows = body.repos.map((r) => `
+      <div class="task-row" data-repo="${escapeHtml(r.full_name)}" style="cursor:pointer;">
+        <span class="task-agent">${r.private ? "🔒" : "📖"} ${escapeHtml(r.full_name)}</span>
+      </div>`).join("");
+    el.innerHTML = rows || '<div class="settings-hint">No repos found.</div>';
+    el.querySelectorAll("[data-repo]").forEach((row) => {
+      row.addEventListener("click", () => loadGitHubFolder(row.getAttribute("data-repo"), ""));
+    });
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t list your repos.</div>';
+  }
+}
+
+async function loadGitHubFolder(repo, path) {
+  const el = document.getElementById("github-browser");
+  if (!el) return;
+  el.innerHTML = '<div class="settings-hint">Loading…</div>';
+  try {
+    const res = await fetch(
+      `/api/connectors/github/files?repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}`
+    );
+    const body = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="modal-empty">${escapeHtml(body.message || "Couldn't list that path.")}</div>`;
+      return;
+    }
+    const upLabel = path ? ".. (up one level)" : "‹ all repos";
+    const upRow = `<div class="task-row" data-nav-up="1" style="cursor:pointer;">
+      <span class="task-agent">${upLabel}</span>
+    </div>`;
+    const rows = body.entries.map((e) => {
+      if (e.is_folder) {
+        return `
+          <div class="task-row" data-nav="${escapeHtml(e.path)}" style="cursor:pointer;">
+            <span class="task-agent">📁 ${escapeHtml(e.name)}</span>
+          </div>`;
+      }
+      return `
+        <div class="task-row">
+          <div class="task-meta"><span class="task-summary">📄 ${escapeHtml(e.name)}</span></div>
+          <button class="settings-btn" data-pull="${escapeHtml(e.path)}">Copy</button>
+        </div>`;
+    }).join("");
+    el.innerHTML = upRow + (rows || '<div class="settings-hint">Empty folder.</div>');
+    el.querySelector("[data-nav-up]").addEventListener("click", () => {
+      if (path) {
+        loadGitHubFolder(repo, path.split("/").slice(0, -1).join("/"));
+      } else {
+        loadGitHubRepoPicker();
+      }
+    });
+    el.querySelectorAll("[data-nav]").forEach((row) => {
+      row.addEventListener("click", () => loadGitHubFolder(repo, row.getAttribute("data-nav")));
+    });
+    el.querySelectorAll("[data-pull]").forEach((btn) => {
+      btn.addEventListener("click", () => pullGitHubFile(repo, btn.getAttribute("data-pull"), btn));
+    });
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t list that path.</div>';
+  }
+}
+
+async function pullGitHubFile(repo, path, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch("/api/connectors/github/pull", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repo, path }),
     });
     const body = await res.json();
     if (!res.ok) {
@@ -3103,10 +3272,12 @@ async function applyDefaultAgentSetting() {
   document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
 
   const connectorResult = new URLSearchParams(window.location.search).get("connector");
-  if (connectorResult === "dropbox") {
+  const connectorLabels = { dropbox: "Dropbox", github: "GitHub" };
+  if (connectorLabels[connectorResult]) {
     const status = new URLSearchParams(window.location.search).get("status");
+    const label = connectorLabels[connectorResult];
     window.history.replaceState({}, "", window.location.pathname);
-    showToast(status === "connected" ? "Connected to Dropbox." : "Couldn't connect to Dropbox.");
+    showToast(status === "connected" ? `Connected to ${label}.` : `Couldn't connect to ${label}.`);
     openSettings("connectors");
   }
 })();
