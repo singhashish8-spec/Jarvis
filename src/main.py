@@ -27,6 +27,7 @@ from src.agents.qa_agent import QAAgent  # noqa: E402
 from src.agents.tester_agent import TesterAgent  # noqa: E402
 from src.config import config  # noqa: E402
 from src.connectors.dropbox_client import DropboxClient  # noqa: E402
+from src.connectors.github_client import GitHubClient  # noqa: E402
 from src.database.client import DatabaseClient  # noqa: E402
 from src.settings import is_agent_enabled, resolve_agent_settings  # noqa: E402
 from src.settings_schema import (  # noqa: E402
@@ -53,6 +54,7 @@ try:
     db_client = DatabaseClient()
     r2_client = R2Client()
     dropbox_client = DropboxClient()
+    github_client = GitHubClient()
     brainstorm_agent = BrainstormAgent()
     coder_agent = CoderAgent()
     tester_agent = TesterAgent()
@@ -363,6 +365,122 @@ def dropbox_pull():
         logger.error("Dropbox download failed: %s", exc)
         raise APIError("Couldn't download that file from Dropbox.", 502)
     return jsonify({"path": path, "content": content}), 200
+
+
+# ============================================
+# CONNECTORS — GitHub
+# ============================================
+# Same shape as Dropbox above. Classic OAuth App tokens don't expire,
+# so unlike Dropbox there's no refresh step — the access token from
+# the code exchange is stored and reused directly.
+
+GITHUB_TOKEN_SETTING = "github_access_token"
+GITHUB_LOGIN_SETTING = "github_account_login"
+
+
+def _github_redirect_uri() -> str:
+    return request.url_root.rstrip("/") + "/api/connectors/github/callback"
+
+
+def _github_access_token() -> str:
+    token = db_client.get_setting(GITHUB_TOKEN_SETTING)
+    if not token:
+        raise APIError("GitHub isn't connected.", 400)
+    return token
+
+
+@app.route("/api/connectors/github/status", methods=["GET"])
+def github_status():
+    token = db_client.get_setting(GITHUB_TOKEN_SETTING)
+    return (
+        jsonify(
+            {
+                "configured": github_client.is_configured(),
+                "connected": bool(token),
+                "account_login": (
+                    db_client.get_setting(GITHUB_LOGIN_SETTING) if token else None
+                ),
+            }
+        ),
+        200,
+    )
+
+
+@app.route("/api/connectors/github/authorize", methods=["GET"])
+def github_authorize():
+    if not github_client.is_configured():
+        raise APIError(
+            "GitHub isn't configured yet — GITHUB_OAUTH_CLIENT_ID / "
+            "GITHUB_OAUTH_CLIENT_SECRET aren't set. See docs/SETTINGS.md#connectors--mcp.",
+            400,
+        )
+    return redirect(github_client.get_authorize_url(_github_redirect_uri()))
+
+
+@app.route("/api/connectors/github/callback", methods=["GET"])
+def github_callback():
+    if request.args.get("error") or not request.args.get("code"):
+        return redirect("/?connector=github&status=error")
+    try:
+        tokens = github_client.exchange_code(
+            request.args["code"], _github_redirect_uri()
+        )
+        login = github_client.get_account_login(tokens["access_token"])
+        db_client.set_setting(GITHUB_TOKEN_SETTING, tokens["access_token"])
+        db_client.set_setting(GITHUB_LOGIN_SETTING, login or "")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("GitHub OAuth callback failed: %s", exc)
+        return redirect("/?connector=github&status=error")
+    return redirect("/?connector=github&status=connected")
+
+
+@app.route("/api/connectors/github/disconnect", methods=["POST"])
+def github_disconnect():
+    db_client.set_setting(GITHUB_TOKEN_SETTING, "")
+    db_client.set_setting(GITHUB_LOGIN_SETTING, "")
+    return jsonify({"disconnected": True}), 200
+
+
+@app.route("/api/connectors/github/repos", methods=["GET"])
+def github_repos():
+    access_token = _github_access_token()
+    try:
+        repos = github_client.list_repos(access_token)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("GitHub list_repos failed: %s", exc)
+        raise APIError("Couldn't list your GitHub repos.", 502)
+    return jsonify({"repos": repos}), 200
+
+
+@app.route("/api/connectors/github/files", methods=["GET"])
+def github_files():
+    repo = request.args.get("repo")
+    if not repo:
+        raise APIError("repo is required", 400)
+    path = request.args.get("path", "")
+    access_token = _github_access_token()
+    try:
+        entries = github_client.list_path(access_token, repo, path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("GitHub list_path failed: %s", exc)
+        raise APIError("Couldn't list that path in that repo.", 502)
+    return jsonify({"repo": repo, "path": path, "entries": entries}), 200
+
+
+@app.route("/api/connectors/github/pull", methods=["POST"])
+def github_pull():
+    data = request.get_json(silent=True) or {}
+    repo = data.get("repo")
+    path = data.get("path")
+    if not repo or not path:
+        raise APIError("repo and path are required", 400)
+    access_token = _github_access_token()
+    try:
+        content = github_client.download_file_text(access_token, repo, path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("GitHub download failed: %s", exc)
+        raise APIError("Couldn't download that file from GitHub.", 502)
+    return jsonify({"repo": repo, "path": path, "content": content}), 200
 
 
 def _save_setting(key: str, raw_value: Any) -> str:

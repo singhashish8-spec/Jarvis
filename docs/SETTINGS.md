@@ -155,10 +155,35 @@ Every real API call first exchanges the stored refresh token for a fresh access 
 than caching one — Vercel's serverless functions don't reliably keep process memory between
 requests, the same reasoning behind the rate limiter's DB-backed count.
 
+### GitHub — the second real connector
+
+Same idea as Dropbox, one level deeper: connect once, pick a repo, browse it, pull a file's
+text content in.
+
+- **Setup** (one-time, outside the dashboard): create a **classic OAuth App** at
+  [github.com/settings/developers](https://github.com/settings/developers) — GitHub OAuth Apps
+  only allow one callback URL each, so register a separate app per place Jarvis runs (local dev
+  vs. production get different apps, not one app with two URLs). Set `GITHUB_OAUTH_CLIENT_ID` /
+  `GITHUB_OAUTH_CLIENT_SECRET` — see `.env.example` for the exact steps. Until both are set, the
+  card shows "Needs setup".
+- **Connect** (`GET /api/connectors/github/authorize`, scope `repo` — covers private repos too,
+  since most real project repos aren't public) redirects into GitHub's consent screen; approving
+  sends you back to `.../callback`, which exchanges the code for an access token and redirects
+  to `/?connector=github&status=connected`. Classic OAuth App tokens don't expire, so unlike
+  Dropbox there's no refresh step — the token from the exchange is stored and reused as-is (same
+  `settings`-table-key-outside-`SETTINGS_SCHEMA` pattern as Dropbox's refresh token).
+- **Browse** (`GET /api/connectors/github/repos` to list your repos, then
+  `GET /api/connectors/github/files?repo=...&path=...` to browse one) — repos first, then files
+  within the one you pick, same "up one level" pattern as Dropbox but with an extra level back
+  to the repo list.
+- **Copy** (`POST /api/connectors/github/pull`) — same ~200KB cap and clipboard-copy behavior as
+  Dropbox.
+- **Disconnect** (`POST /api/connectors/github/disconnect`) clears the stored token.
+
 ### The rest — still placeholders
 
-Google Drive, Slack, and GitHub would each be a cloud-to-cloud OAuth connector, same shape as
-Dropbox above — nothing wired up yet. **PyRevit / Local PC & Home Server is different in kind,
+Google Drive and Slack would each be a cloud-to-cloud OAuth connector, same shape as Dropbox/
+GitHub above — nothing wired up yet. **PyRevit / Local PC & Home Server is different in kind,
 not just unbuilt**: Jarvis runs on Vercel, which has no way to reach your PC directly, and
 PyRevit is local desktop software with no cloud API of its own. Making that one real needs
 either a small bridge/onboard app running on your machine that Jarvis's cloud side can talk to,
@@ -217,8 +242,9 @@ Both are destructive and irreversible; the dashboard confirms before calling eit
   request actually uses (`resolve_agent_settings`), called once per request from `main.py`.
 - [`src/database/client.py`](../src/database/client.py) — generic `get_setting`/`set_setting`
   plus the Skills/task-browser/danger-zone specific methods.
-- [`src/connectors/dropbox_client.py`](../src/connectors/dropbox_client.py) — the OAuth
-  handshake and Files API calls behind the Dropbox connector; routes live in `main.py` under
-  `/api/connectors/dropbox/*`.
+- [`src/connectors/dropbox_client.py`](../src/connectors/dropbox_client.py) and
+  [`src/connectors/github_client.py`](../src/connectors/github_client.py) — the OAuth handshake
+  and REST calls behind each real connector; routes live in `main.py` under
+  `/api/connectors/{dropbox,github}/*`.
 - [`src/static/dashboard.html`](../src/static/dashboard.html) — the Settings panel itself (CSS
   under `/* ---------- Settings (Command Deck) ---------- */`, JS under `SETTINGS`).
