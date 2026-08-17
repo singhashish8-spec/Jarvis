@@ -4,6 +4,20 @@ The dashboard has a Settings panel (gear icon at the bottom of the sidebar) with
 categories. Every field in it has an (i) icon — click it for a note on what the setting does,
 how it takes effect, and whether it costs Replicate tokens/compute.
 
+**Look**: the panel uses a dense, keyboard-first "Command Deck" style — monochrome surfaces
+plus a single violet accent, thin borders, tabular numbers — rather than a generic card-heavy
+SaaS look. Two pieces worth knowing about:
+
+- **Jump to a setting** — the search bar under the header title (`Ctrl`/`Cmd`+`K` while Settings
+  is open focuses it) filters the current category's fields, connector cards, status rows,
+  skills, and tasks by matching visible text. It's a local DOM filter, not a search index — it
+  only searches what's already rendered in the category you're on.
+- **Settings theme** (Appearance category) — a Dark/Bright toggle scoped to the Settings panel
+  itself, saved in `localStorage` (`jarvisSettingsTheme`). It re-themes every category via CSS
+  custom properties (`--sd-*`, defined on `.settings-modal` in
+  [dashboard.html](../src/static/dashboard.html)), but doesn't touch the rest of the dashboard —
+  chat and the sidebar stay dark-mode only, same as before.
+
 This doc is the same information in one place, plus the API endpoints behind each category
 (see [API_SPEC.md](API_SPEC.md) for full request/response shapes) and what's needed for each
 to actually persist (some require the `settings` and `skills.template` schema additions — see
@@ -71,9 +85,14 @@ None of this touches Replicate — it's all local storage or database housekeepi
 
 ## Appearance
 
-One real control today: **Compact messages** (tightens spacing, saved in `localStorage`). A
-full light theme is planned but not built — see the note on the toggle. The dashboard stays
-dark-mode only for now.
+- **Settings theme** — Dark/Bright toggle for the Settings panel itself (see above). Saved in
+  `localStorage` (`jarvisSettingsTheme`), applied on open via `applySettingsTheme()`.
+- **Compact messages** — tightens spacing between chat messages, saved in `localStorage`
+  (`jarvisCompactMode`).
+
+Both are client-side only, cost nothing, and only the theme toggle is scoped to the modal — the
+rest of the dashboard (chat, sidebar) stays dark-mode only for now; a full app-wide light theme
+would be a separate, larger change.
 
 ## System Status
 
@@ -171,4 +190,4 @@ Both are destructive and irreversible; the dashboard confirms before calling eit
 - [`src/database/client.py`](../src/database/client.py) — generic `get_setting`/`set_setting`
   plus the Skills/task-browser/danger-zone specific methods.
 - [`src/static/dashboard.html`](../src/static/dashboard.html) — the Settings panel itself (CSS
-  under `/* ---------- Settings ---------- */`, JS under `SETTINGS`).
+  under `/* ---------- Settings (Command Deck) ---------- */`, JS under `SETTINGS`).
