@@ -135,3 +135,201 @@ def test_get_usage_summary_returns_zeros_on_error():
     summary = db.get_usage_summary()
     assert summary["tokens_used_today"] == 0
     assert summary["estimated_cost_usd_total"] == 0.0
+
+
+def test_delete_task_returns_true_on_success():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.return_value.delete.return_value.eq.return_value.execute.return_value = (
+        MagicMock()
+    )
+    assert db.delete_task("task-1") is True
+
+
+def test_delete_task_returns_false_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.delete_task("task-1") is False
+
+
+def test_count_recent_tasks_counts_rows_in_window():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "1"}, {"id": "2"}, {"id": "3"}]
+    mock_supabase.table.return_value.select.return_value.gte.return_value.execute.return_value = (
+        mock_execute
+    )
+    assert db.count_recent_tasks(60) == 3
+
+
+def test_count_recent_tasks_returns_zero_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.count_recent_tasks(60) == 0
+
+
+def test_purge_tasks_older_than_returns_deleted_count():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "1"}, {"id": "2"}]
+    mock_supabase.table.return_value.delete.return_value.lt.return_value.execute.return_value = (
+        mock_execute
+    )
+    assert db.purge_tasks_older_than(30) == 2
+
+
+def test_purge_tasks_older_than_raises_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    with pytest.raises(Exception):
+        db.purge_tasks_older_than(30)
+
+
+def test_reset_usage_deletes_all_rows():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.return_value.delete.return_value.neq.return_value.execute.return_value = (
+        MagicMock()
+    )
+    db.reset_usage()
+    mock_supabase.table.assert_called_with("usage")
+
+
+def test_reset_usage_raises_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    with pytest.raises(Exception):
+        db.reset_usage()
+
+
+def test_reset_all_settings_deletes_all_rows():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.return_value.delete.return_value.neq.return_value.execute.return_value = (
+        MagicMock()
+    )
+    db.reset_all_settings()
+    mock_supabase.table.assert_called_with("settings")
+
+
+def test_list_skills_filters_by_agent_type():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "s1", "agent_type": "coder"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = (
+        mock_execute
+    )
+    skills = db.list_skills(agent_type="coder")
+    assert skills == [{"id": "s1", "agent_type": "coder"}]
+
+
+def test_list_skills_returns_empty_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.list_skills() == []
+
+
+def test_get_skill_returns_row():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "s1", "template": "Hi $name"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+    assert db.get_skill("s1") == {"id": "s1", "template": "Hi $name"}
+
+
+def test_get_skill_returns_none_when_missing():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+    assert db.get_skill("missing") is None
+
+
+def test_get_skill_returns_none_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.get_skill("s1") is None
+
+
+def test_create_skill_returns_new_id():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": "new-skill-id"}]
+    mock_supabase.table.return_value.insert.return_value.execute.return_value = (
+        mock_execute
+    )
+    skill_id = db.create_skill(
+        agent_type="coder",
+        skill_name="Terse code",
+        template="Write $requirements tersely.",
+    )
+    assert skill_id == "new-skill-id"
+
+
+def test_create_skill_raises_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("no such column: template")
+    with pytest.raises(Exception):
+        db.create_skill(agent_type="coder", skill_name="x", template="y")
+
+
+def test_update_skill_calls_update_with_fields():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = (
+        MagicMock()
+    )
+    db.update_skill("s1", is_active=False)
+    mock_supabase.table.return_value.update.assert_called_with({"is_active": False})
+
+
+def test_delete_skill_calls_delete():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.return_value.delete.return_value.eq.return_value.execute.return_value = (
+        MagicMock()
+    )
+    db.delete_skill("s1")
+    mock_supabase.table.assert_called_with("skills")
+
+
+def test_get_setting_returns_value_when_present():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"value": "10.0"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    assert db.get_setting("credit_limit_usd") == "10.0"
+
+
+def test_get_setting_returns_none_when_absent():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = (
+        mock_execute
+    )
+
+    assert db.get_setting("credit_limit_usd") is None
+
+
+def test_get_setting_returns_none_on_db_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    assert db.get_setting("credit_limit_usd") is None
+
+
+def test_set_setting_upserts():
+    db, mock_supabase = _client_with_mocked_supabase()
+    db.set_setting("credit_limit_usd", "25.0")
+    mock_supabase.table.return_value.upsert.assert_called_with(
+        {"key": "credit_limit_usd", "value": "25.0"}
+    )
+
+
+def test_set_setting_raises_on_db_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("settings table doesn't exist")
+    with pytest.raises(Exception):
+        db.set_setting("credit_limit_usd", "25.0")

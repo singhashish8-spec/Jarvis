@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from src.agents.base_agent import BaseAgent
 from src.agents.replicate_client import ReplicateClient
+from src.settings import resolve_model_and_version
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,19 @@ class BrainstormAgent(BaseAgent):
         logger.info("Brainstorming: %s", topic)
 
         try:
-            prompt = self._build_prompt(topic, context, style)
+            prompt = self.resolve_prompt(
+                self._build_prompt(topic, context, style),
+                {"topic": topic, "context": context, "style": style},
+            )
+            model, version = resolve_model_and_version(self.settings, MODEL)
             run_result = self.replicate_client.run(
-                MODEL,
-                {"prompt": prompt, "max_tokens": 1024, "temperature": 0.7},
+                model,
+                {
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_or(1024),
+                    "temperature": self.temperature_or(0.7),
+                },
+                version=version,
             )
             result = {
                 "task_id": task_id,

@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS skills (
     agent_type VARCHAR(50) NOT NULL,
     skill_name VARCHAR(255) NOT NULL,
     description TEXT,
+    template TEXT,
     version VARCHAR(20),
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -74,7 +75,15 @@ CREATE INDEX IF NOT EXISTS idx_usage_date ON usage(date);
 CREATE INDEX IF NOT EXISTS idx_usage_agent_type ON usage(agent_type);
 """
 
-ALL_TABLES = [TASKS_TABLE, PROJECTS_TABLE, SKILLS_TABLE, USAGE_TABLE]
+SETTINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS settings (
+    key VARCHAR(50) PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+"""
+
+ALL_TABLES = [TASKS_TABLE, PROJECTS_TABLE, SKILLS_TABLE, USAGE_TABLE, SETTINGS_TABLE]
 
 
 def get_init_sql() -> str:

@@ -69,6 +69,79 @@ def client(monkeypatch):
     )
     monkeypatch.setattr(r2_client, "save_task_output", lambda *args, **kwargs: True)
 
+    # Fake settings store, in-memory per test, so POST -> GET round trips
+    # (e.g. saving a credit limit) behave like the real DB without one.
+    fake_settings: dict = {}
+    monkeypatch.setattr(db_client, "get_setting", lambda key: fake_settings.get(key))
+    monkeypatch.setattr(
+        db_client,
+        "set_setting",
+        lambda key, value: fake_settings.__setitem__(key, value),
+    )
+    monkeypatch.setattr(db_client, "reset_all_settings", lambda: fake_settings.clear())
+
+    # Fake tasks store, so Data Controls' task browser and rate limiting
+    # have something real to read without a live DB.
+    fake_tasks: list = []
+    monkeypatch.setattr(
+        db_client, "list_tasks", lambda agent_type=None, limit=100: list(fake_tasks)
+    )
+
+    def _delete_task(task_id):
+        # Matches the real DatabaseClient: a Supabase `delete().eq(...)`
+        # call succeeds (True) whether or not a row actually matched —
+        # there's no server-side "not found" signal to check against.
+        fake_tasks[:] = [t for t in fake_tasks if t["id"] != task_id]
+        return True
+
+    monkeypatch.setattr(db_client, "delete_task", _delete_task)
+    monkeypatch.setattr(
+        db_client, "count_recent_tasks", lambda seconds: len(fake_tasks)
+    )
+    monkeypatch.setattr(db_client, "purge_tasks_older_than", lambda days: 0)
+    monkeypatch.setattr(db_client, "reset_usage", lambda: None)
+
+    # Fake skills store, in-memory per test.
+    fake_skills: list = []
+
+    def _create_skill(agent_type, skill_name, template, description="", version="1.0"):
+        skill_id = f"skill-{len(fake_skills) + 1}"
+        fake_skills.append(
+            {
+                "id": skill_id,
+                "agent_type": agent_type,
+                "skill_name": skill_name,
+                "template": template,
+                "description": description,
+                "version": version,
+                "is_active": True,
+            }
+        )
+        return skill_id
+
+    def _get_skill(skill_id):
+        return next((s for s in fake_skills if s["id"] == skill_id), None)
+
+    def _update_skill(skill_id, **fields):
+        skill = _get_skill(skill_id)
+        if skill:
+            skill.update(fields)
+
+    def _delete_skill(skill_id):
+        fake_skills[:] = [s for s in fake_skills if s["id"] != skill_id]
+
+    monkeypatch.setattr(
+        db_client,
+        "list_skills",
+        lambda agent_type=None: [
+            s for s in fake_skills if not agent_type or s["agent_type"] == agent_type
+        ],
+    )
+    monkeypatch.setattr(db_client, "create_skill", _create_skill)
+    monkeypatch.setattr(db_client, "get_skill", _get_skill)
+    monkeypatch.setattr(db_client, "update_skill", _update_skill)
+    monkeypatch.setattr(db_client, "delete_skill", _delete_skill)
+
     mocked_run_result = {
         "output": "mocked model output",
         "usage": {

@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 from src.agents.base_agent import BaseAgent
 from src.agents.replicate_client import ReplicateClient
+from src.settings import resolve_model_and_version
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,19 @@ class DocumentAgent(BaseAgent):
         logger.info("Writing docs: %s", subject)
 
         try:
-            prompt = self._build_prompt(subject, content, doc_type)
+            prompt = self.resolve_prompt(
+                self._build_prompt(subject, content, doc_type),
+                {"subject": subject, "content": content, "doc_type": doc_type},
+            )
+            model, version = resolve_model_and_version(self.settings, MODEL)
             run_result = self.replicate_client.run(
-                MODEL, {"prompt": prompt, "max_tokens": 1024, "temperature": 0.4}
+                model,
+                {
+                    "prompt": prompt,
+                    "max_tokens": self.max_tokens_or(1024),
+                    "temperature": self.temperature_or(0.4),
+                },
+                version=version,
             )
             result = {
                 "task_id": task_id,

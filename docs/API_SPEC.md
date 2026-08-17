@@ -65,8 +65,9 @@ only returns username/type, nothing financial (confirmed against
 Replicate's own docs). Every number here is derived from what each
 prediction actually reports (token counts when the model provides them,
 compute time otherwise — see [AGENTS.md](AGENTS.md#cost-estimation)), and
-`credit_limit_usd` is a budget you set yourself via
-`REPLICATE_CREDIT_LIMIT_USD` to match what you've loaded on
+`credit_limit_usd` is a budget you set yourself (via the pencil icon next
+to "Est. spend" in the dashboard sidebar, or `REPLICATE_CREDIT_LIMIT_USD`
+as a fallback) to match what you've loaded on
 [replicate.com/account/billing](https://replicate.com/account/billing) —
 that page remains the authoritative source for your real balance.
 
@@ -83,13 +84,247 @@ that page remains the authoritative source for your real balance.
 }
 ```
 
-`credit_limit_usd` and `credit_remaining_usd` are `null` when
-`REPLICATE_CREDIT_LIMIT_USD` isn't set — the dashboard just shows tokens
+`credit_limit_usd` and `credit_remaining_usd` are `null` when no budget
+has been saved (dashboard or env var) — the dashboard just shows tokens
 and estimated spend with no budget bar in that case.
 
 ---
 
+## `POST /api/settings/credit-limit`
+
+Saves the budget `GET /api/usage` tracks spend against, persisted in the
+database's `settings` table — this is what the dashboard's pencil-icon
+editor calls, so setting a budget doesn't require touching Vercel env
+vars or `.env`. A saved value takes precedence over
+`REPLICATE_CREDIT_LIMIT_USD`.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `credit_limit_usd` | number or `null` | yes | Non-negative. `null` clears the saved override, falling back to `REPLICATE_CREDIT_LIMIT_USD` if set. |
+
+```bash
+curl -X POST http://localhost:5000/api/settings/credit-limit \
+  -H "Content-Type: application/json" \
+  -d '{"credit_limit_usd": 10.0}'
+```
+
+**Response `200`**
+```json
+{"credit_limit_usd": 10.0}
+```
+
+**Response `400`** — `credit_limit_usd` missing, negative, or not a number.
+
+**Response `500`** — couldn't save, most likely because the `settings`
+table doesn't exist yet in your Supabase project (see
+[DATABASE.md](DATABASE.md)).
+
+---
+
+## Settings endpoints
+
+See [SETTINGS.md](SETTINGS.md) for what each setting does, whether it costs
+tokens, and how it takes effect — this section is just the request/response
+shapes.
+
+### `GET /api/settings`
+
+Every generic scalar setting (Usage & Billing's credit limit/GPU rate/budget
+alert, Custom Instructions, Rate Limiting, Webhooks, Data Controls' retention
+days, Agent Defaults' default-agent) plus the metadata the dashboard renders
+itself from — label, input type, whether it costs tokens, and the (i)-tooltip
+note. [`settings_schema.py`](../src/settings_schema.py) is the single source
+of truth for all of it.
+
+**Response `200`**
+```json
+{
+  "categories": [{"id": "usage_billing", "label": "Usage & Billing"}, "..."],
+  "settings": [
+    {
+      "key": "credit_limit_usd", "category": "usage_billing", "label": "Credit limit",
+      "type": "number", "min": 0, "unit": "$", "default": null, "costs_tokens": false,
+      "note": "A budget you set yourself...", "value": 10.0
+    }
+  ]
+}
+```
+
+### `POST /api/settings`
+
+Bulk-updates one or more generic settings: `{"key": value, ...}`. Every key is
+validated against `settings_schema.py` before anything is saved, so one bad
+value in the batch doesn't partially apply the rest. `null` clears a setting
+back to its default/env-var fallback.
+
+```bash
+curl -X POST http://localhost:5000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"rate_limit_per_minute": 20, "webhook_url": "https://example.com/hook"}'
+```
+
+**Response `200`**: `{"saved": ["rate_limit_per_minute", "webhook_url"]}`
+**Response `400`**: an unknown key, or a value that fails its schema's type/range check.
+
+### `POST /api/settings/reset`
+
+Advanced / Danger Zone. Reverts every setting to its default/env-var
+fallback, including Agent Defaults overrides and active Skill selections.
+Does not delete Skills themselves or any chat/task history.
+
+**Response `200`**: `{"reset": true}`
+
+### `GET /api/settings/agent-config`
+
+The full Agent Defaults matrix: every agent's built-in defaults, the one
+available model override, and any saved overrides.
+
+**Response `200`**
+```json
+{
+  "agents": [{"id": "brainstorm", "label": "Brainstorm"}, "..."],
+  "defaults": {"brainstorm": {"model": "Llama 3 70B", "temperature": 0.7, "max_tokens": 1024}, "..."},
+  "cheaper_model": "meta/meta-llama-3-8b-instruct",
+  "config": {"coder": {"enabled": false, "model": "cheaper", "temperature": 0.5, "max_tokens": 300}}
+}
+```
+
+### `POST /api/settings/agent-config`
+
+Saves the full matrix in one call (not a per-agent patch — always send the
+whole object). Each agent's entry accepts `enabled` (bool), `model`
+(`"cheaper"` or `null`), `temperature` (0–2), `max_tokens` (1–4096); omit a
+key to leave that agent using its built-in default.
+
+**Response `200`**: `{"config": {...}}` (the cleaned, saved matrix)
+**Response `400`**: unknown agent id, wrong type, or an out-of-range value.
+
+### `GET /api/tasks`
+
+Recent tasks for Data Controls' task browser. `?agent_type=` filters;
+`?limit=` defaults to 50, capped at 200.
+
+**Response `200`**: `{"tasks": [{"id": "...", "agent_type": "coder", "input": {...}, "created_at": "...", "cost": 0.002}, "..."]}`
+
+### `DELETE /api/tasks/<task_id>`
+
+Deletes one saved task. **Response `200`**: `{"deleted": "<task_id>"}`
+
+### `POST /api/data/purge`
+
+Manual trigger behind Data Controls' "Auto-purge tasks older than" setting —
+deletes tasks older than the given (or saved) number of days. Named "purge
+now" deliberately: there's no scheduler wired up on Vercel, so nothing is
+ever deleted unless this is called.
+
+```bash
+curl -X POST http://localhost:5000/api/data/purge \
+  -H "Content-Type: application/json" -d '{"older_than_days": 30}'
+```
+
+**Response `200`**: `{"deleted_count": 12}`
+**Response `400`**: no `older_than_days` given and no `retention_days` setting saved.
+
+### `POST /api/usage/reset`
+
+Advanced / Danger Zone. Wipes all `usage` table rollups (e.g. to start a
+fresh spend count for a new month). Does not touch task history.
+
+**Response `200`**: `{"reset": true}`
+
+---
+
+## Skills endpoints
+
+See [SETTINGS.md#skills](SETTINGS.md#skills) for the per-agent template
+variables and what activating a skill actually changes.
+
+### `GET /api/skills`
+
+`?agent_type=` filters to one agent's skills.
+
+**Response `200`**
+```json
+{
+  "skills": [{"id": "...", "agent_type": "coder", "skill_name": "Terse code", "template": "...", "version": "1.0", "is_active": true}],
+  "active_by_agent": {"brainstorm": null, "coder": "skill-id-here", "...": null},
+  "agents": [{"id": "brainstorm", "label": "Brainstorm"}, "..."]
+}
+```
+
+### `POST /api/skills`
+
+Creates a skill (doesn't activate it — that's a separate call, so a draft
+doesn't immediately take over an agent's real requests).
+
+| Field | Type | Required |
+|---|---|---|
+| `agent_type` | string, one of the 6 agent ids | yes |
+| `skill_name` | string | yes |
+| `template` | string (`$variable` placeholders) | yes |
+| `description` | string | no |
+| `version` | string | no (defaults to `"1.0"`) |
+
+**Response `201`**: `{"id": "<new skill id>"}`
+**Response `400`**: missing/invalid `agent_type`, or missing `skill_name`/`template`.
+**Response `500`**: likely the `skills` table is missing its `template` column — see [DATABASE.md](DATABASE.md).
+
+### `PUT /api/skills/<skill_id>`
+
+Edits `skill_name`, `description`, `template`, `version`, and/or `is_active`
+— any other field is ignored. **Response `200`**: `{"updated": "<skill_id>"}`
+
+### `DELETE /api/skills/<skill_id>`
+
+**Response `200`**: `{"deleted": "<skill_id>"}`
+
+### `POST /api/skills/<skill_id>/activate`
+
+Makes this skill the one used for its agent's future requests, replacing
+that agent's built-in prompt.
+
+**Response `200`**: `{"active_skill": "<skill_id>", "agent_type": "coder"}`
+**Response `404`**: skill not found.
+
+### `POST /api/skills/deactivate`
+
+Reverts an agent back to its built-in prompt. Body: `{"agent_type": "coder"}`
+
+**Response `200`**: `{"agent_type": "coder", "active_skill": null}`
+
+### `POST /api/settings/test-webhook`
+
+Sends one real test payload to the saved `webhook_url` so you can confirm
+it's reachable before relying on it. Costs nothing — plain HTTP POST with
+fake data, no Replicate call involved.
+
+**Response `200`** (even on delivery failure — the failure itself isn't a
+Jarvis-side error):
+```json
+{"delivered": true, "status_code": 200}
+```
+or
+```json
+{"delivered": false, "error": "Connection refused"}
+```
+**Response `400`**: no `webhook_url` is currently set.
+
+---
+
 ## Agent endpoints
+
+Every agent endpoint now also respects Agent Defaults (Settings): a disabled
+agent rejects the request outright, and Rate Limiting can reject it too.
+
+**Response `403`** (agent disabled in Settings > Agent Defaults)
+```json
+{"error": "APIError", "message": "The coder agent is disabled in Settings > Agent Defaults.", "status": 403}
+```
+
+**Response `429`** (Rate Limiting's "max requests per minute" exceeded)
+```json
+{"error": "RateLimitError", "message": "Rate limit exceeded: max 20 requests/minute. Adjust this in Settings > Rate Limiting.", "status": 429}
+```
 
 All five follow the same shape: a JSON body with one required field
 (plus optional extras), and a response with `task_id` + `output` (the

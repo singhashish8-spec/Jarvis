@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from src.settings import render_skill_template
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,6 +20,10 @@ class BaseAgent(ABC):
         self.model_name = model_name
         self.created_at = datetime.now(timezone.utc)
         self.current_task: Dict[str, Any] = {}
+        # Populated by main.py (via settings.resolve_agent_settings) before
+        # process() runs. Left empty for agents used directly — e.g. in
+        # tests — so every override below is simply a no-op by default.
+        self.settings: Dict[str, Any] = {}
         logger.info("%s agent initialized with %s", self.agent_type, model_name)
 
     @abstractmethod
@@ -53,7 +59,32 @@ class BaseAgent(ABC):
         logger.error("Task %s failed: %s", self.current_task["task_id"], error_message)
         return self.current_task
 
-    def estimate_cost(self) -> str:
-        """Rough cost estimate in INR. Phase 1 will compute this from
-        actual tokens used instead of returning a placeholder."""
-        return "₹10-50 (estimated)"
+    def resolve_prompt(self, built_prompt: str, template_vars: Dict[str, Any]) -> str:
+        """Applies settings on top of an agent's normal built prompt:
+        an active Skill's template replaces it entirely (falling back to
+        `built_prompt` if the skill has no template), then Custom
+        Instructions (if any) are prepended. Called with self.settings
+        empty (the default), this is just `return built_prompt`.
+        """
+        prompt = built_prompt
+        skill_template = self.settings.get("skill_template")
+        if skill_template:
+            prompt = render_skill_template(skill_template, template_vars)
+
+        custom_instructions = self.settings.get("custom_instructions")
+        if custom_instructions:
+            prompt = f"{custom_instructions}\n\n{prompt}"
+
+        return prompt
+
+    def temperature_or(self, default: float) -> float:
+        """The Agent Defaults temperature override if one is set,
+        otherwise `default`. A small helper mainly so "is there an
+        override" isn't a `is not None` check duplicated in every agent."""
+        override = self.settings.get("temperature")
+        return override if override is not None else default
+
+    def max_tokens_or(self, default: int) -> int:
+        """Same as `temperature_or`, for the max-tokens override."""
+        override = self.settings.get("max_tokens")
+        return override if override is not None else default

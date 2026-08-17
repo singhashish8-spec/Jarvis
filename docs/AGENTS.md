@@ -136,6 +136,49 @@ is the only authoritative source for what you've actually been charged.
 
 ---
 
+## How Settings changes what an agent actually does
+
+Every agent request goes through `main.py`'s `_run_agent()`, which calls
+`settings.resolve_agent_settings(db_client, agent_type)` once and assigns the
+result to `agent.settings` *before* `agent.process(**data)` runs. From
+there, each agent applies it the same way:
+
+```python
+prompt = self.resolve_prompt(self._build_prompt(...), {"topic": topic, ...})
+model, version = resolve_model_and_version(self.settings, MODEL, MODEL_VERSION)
+run_result = self.replicate_client.run(
+    model,
+    {"prompt": prompt, "max_tokens": self.max_tokens_or(1024), "temperature": self.temperature_or(0.7)},
+    version=version,
+)
+```
+
+- **`resolve_prompt()`** (on `BaseAgent`) swaps in an active Skill's
+  template if one's set (falling back to the agent's own hardcoded
+  `_build_prompt()`), then prepends Custom Instructions if any are saved.
+- **`resolve_model_and_version()`** swaps in the Agent Defaults "cheaper"
+  model override when set — always dropping the `version` id, since the
+  override is always an official model and passing a community model's
+  version alongside a different model would silently break the call.
+- **`temperature_or()` / `max_tokens_or()`** apply an Agent Defaults
+  override when set, otherwise fall back to the agent's own default.
+
+Agents used directly (e.g. in `tests/test_agents.py`, which instantiates
+`BrainstormAgent()` with no settings wiring at all) simply see
+`self.settings == {}`, so every one of these calls is a no-op and behavior
+is identical to before Settings existed — this is what keeps the existing
+test suite passing unchanged.
+
+Before `agent.process()` is even called, `_make_agent_route()` checks
+`settings.is_agent_enabled()` (rejects with `403` if the agent is disabled)
+and Rate Limiting's request count (rejects with `429` if exceeded) — both
+free checks against already-known state, no model call involved.
+
+See [SETTINGS.md](SETTINGS.md) for what each of these settings does from
+the dashboard's side, and whether it costs tokens.
+
+---
+
 ## Adding a new agent
 
 1. Create `src/agents/<name>_agent.py`, subclass `BaseAgent`
@@ -148,3 +191,7 @@ is the only authoritative source for what you've actually been charged.
    (see the existing routes near the bottom of the file for the pattern)
 5. Add tests in `tests/test_agents.py` and `tests/test_api.py`, mocking
    `agent.replicate_client.run` so tests stay offline and free
+6. If the agent should support Skills, add its template variables to
+   `AGENT_TEMPLATE_VARS` in `dashboard.html` and the table in
+   [SETTINGS.md#skills](SETTINGS.md#skills); add it to `AGENT_TYPES` in
+   `settings_schema.py` to get Agent Defaults support automatically
