@@ -70,6 +70,25 @@ a free-text field: an unverified model or version id would silently break an age
 saving money. Temperature doesn't affect cost; a higher max-tokens value costs nothing to set
 but produces longer, more expensive replies on every future call.
 
+### Presets
+
+Two buttons above the matrix — **Frugal** and **Max Quality** — that bundle a one-click change
+across every agent instead of six manual edits, via `GET /api/settings/presets` +
+`POST /api/settings/presets/<id>/apply`:
+
+- **Frugal** sets every agent's model to the cheaper override and halves its max-tokens ceiling
+  (floored at 256) — the two controls that actually affect spend.
+- **Max Quality** clears every agent's model and max-tokens override back to its built-in
+  default.
+
+Both leave `temperature` and `enabled`/disabled alone on purpose — temperature doesn't affect
+cost, and disabling an agent is a separate "I don't use this" choice a preset shouldn't silently
+override. Applying a preset merges onto whatever's already saved rather than replacing the whole
+matrix, so an existing `enabled: false` or custom temperature survives. Presets are fixed and
+built-in for now (`PRESETS` in `settings_schema.py`) — not user-editable, same reasoning as the
+model override being limited to one vetted option rather than free text. Applying one costs
+nothing by itself; it only changes what future requests use.
+
 ## Data Controls
 
 - **Auto-purge tasks older than (N days)** — a preference, not automatic. Vercel has no

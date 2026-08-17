@@ -19,7 +19,7 @@ and UI instead of living here — forcing genuinely structured data through
 a flat key/value schema would make it harder to read, not easier.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 SETTINGS_SCHEMA: List[Dict[str, Any]] = [
     {
@@ -222,6 +222,60 @@ AGENT_BUILTIN_DEFAULTS: Dict[str, Dict[str, Any]] = {
     "document": {"model": "Llama 3 70B", "temperature": 0.4, "max_tokens": 1024},
     "qa": {"model": "DeepSeek-Coder 33B", "temperature": 0.2, "max_tokens": 1024},
 }
+
+# Presets bundle the two Agent Defaults controls that actually change
+# spend — model override and max_tokens — into one click across every
+# agent, instead of editing six rows by hand. Deliberately leave
+# `temperature` and `enabled` alone: temperature doesn't affect cost
+# (see the Agent Defaults tooltip), and disabling an agent is an
+# "I don't use this" choice, not a cost/quality tradeoff a preset
+# should override.
+PRESETS: List[Dict[str, str]] = [
+    {
+        "id": "frugal",
+        "label": "Frugal",
+        "note": (
+            "Swaps every agent to the cheaper model and halves each agent's max-tokens "
+            "ceiling (floored at 256) — the two controls that actually reduce spend. "
+            "Temperature and enabled/disabled are left exactly as they are. Applying this "
+            "costs nothing by itself — it only changes what future requests use."
+        ),
+    },
+    {
+        "id": "max_quality",
+        "label": "Max Quality",
+        "note": (
+            "Clears every agent's model and max-tokens override back to its built-in "
+            "default. Temperature and enabled/disabled are left exactly as they are. "
+            "Applying this costs nothing by itself — it only changes what future requests "
+            "use."
+        ),
+    },
+]
+
+_PRESET_IDS = {p["id"] for p in PRESETS}
+
+
+def compute_preset_agent_config(
+    preset_id: str,
+) -> Dict[str, Dict[str, Optional[Any]]]:
+    """The {agent_id: {"model": ..., "max_tokens": ...}} delta a preset
+    applies. `None` means "clear the override, use the built-in
+    default" — the same convention `POST /api/settings` already uses.
+    Raises ValueError for an unknown preset_id."""
+    if preset_id not in _PRESET_IDS:
+        raise ValueError(f"Unknown preset: '{preset_id}'")
+
+    result: Dict[str, Dict[str, Optional[Any]]] = {}
+    for agent_id, defaults in AGENT_BUILTIN_DEFAULTS.items():
+        if preset_id == "frugal":
+            result[agent_id] = {
+                "model": "cheaper",
+                "max_tokens": max(256, defaults["max_tokens"] // 2),
+            }
+        else:  # max_quality
+            result[agent_id] = {"model": None, "max_tokens": None}
+    return result
 
 
 def validate_setting_value(key: str, raw_value: Any) -> str:

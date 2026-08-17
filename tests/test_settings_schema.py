@@ -3,7 +3,13 @@ generic setting's validation rules and the Agent Defaults matrix."""
 
 import pytest
 
-from src.settings_schema import validate_agent_config, validate_setting_value
+from src.settings_schema import (
+    AGENT_BUILTIN_DEFAULTS,
+    PRESETS,
+    compute_preset_agent_config,
+    validate_agent_config,
+    validate_setting_value,
+)
 
 
 def test_validate_setting_value_number_within_range():
@@ -107,3 +113,62 @@ def test_validate_agent_config_rejects_out_of_range_max_tokens():
 def test_validate_agent_config_empty_input_returns_empty():
     assert validate_agent_config({}) == {}
     assert validate_agent_config(None) == {}
+
+
+# ---- Presets ----
+
+
+def test_presets_list_has_frugal_and_max_quality():
+    ids = {p["id"] for p in PRESETS}
+    assert ids == {"frugal", "max_quality"}
+
+
+def test_compute_preset_rejects_unknown_id():
+    with pytest.raises(ValueError):
+        compute_preset_agent_config("does-not-exist")
+
+
+def test_frugal_preset_covers_every_agent():
+    delta = compute_preset_agent_config("frugal")
+    assert set(delta.keys()) == set(AGENT_BUILTIN_DEFAULTS.keys())
+
+
+def test_frugal_preset_sets_cheaper_model_for_every_agent():
+    delta = compute_preset_agent_config("frugal")
+    assert all(entry["model"] == "cheaper" for entry in delta.values())
+
+
+def test_frugal_preset_halves_max_tokens():
+    delta = compute_preset_agent_config("frugal")
+    assert (
+        delta["coder"]["max_tokens"]
+        == AGENT_BUILTIN_DEFAULTS["coder"]["max_tokens"] // 2
+    )
+
+
+def test_frugal_preset_floors_max_tokens_at_256():
+    # deployer's default max_tokens (512) halves to exactly 256, the floor —
+    # this pins the floor logic even if that default ever drops further.
+    delta = compute_preset_agent_config("frugal")
+    assert delta["deployer"]["max_tokens"] >= 256
+
+
+def test_max_quality_preset_clears_every_agent_override():
+    delta = compute_preset_agent_config("max_quality")
+    assert set(delta.keys()) == set(AGENT_BUILTIN_DEFAULTS.keys())
+    assert all(entry == {"model": None, "max_tokens": None} for entry in delta.values())
+
+
+def test_frugal_preset_deltas_pass_validation():
+    # Every preset's output must itself be acceptable input to
+    # validate_agent_config — this is exactly how main.py uses it.
+    cleaned = validate_agent_config(compute_preset_agent_config("frugal"))
+    assert cleaned["coder"]["model"] == "cheaper"
+    assert cleaned["coder"]["max_tokens"] == 512
+
+
+def test_max_quality_preset_deltas_pass_validation():
+    cleaned = validate_agent_config(compute_preset_agent_config("max_quality"))
+    # None values mean "not provided" to validate_agent_config, so a
+    # cleared agent ends up with an empty entry, not explicit nulls.
+    assert cleaned == {agent_id: {} for agent_id in AGENT_BUILTIN_DEFAULTS}
