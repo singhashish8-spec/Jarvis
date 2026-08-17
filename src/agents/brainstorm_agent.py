@@ -44,11 +44,15 @@ class BrainstormAgent(BaseAgent):
 
         try:
             prompt = self._build_prompt(topic, context, style)
-            output = self.replicate_client.run(
+            run_result = self.replicate_client.run(
                 MODEL,
                 {"prompt": prompt, "max_tokens": 1024, "temperature": 0.7},
             )
-            result = {"task_id": task_id, "output": output}
+            result = {
+                "task_id": task_id,
+                "output": run_result["output"],
+                "usage": run_result["usage"],
+            }
             self.complete_task(result)
             return result
         except Exception as exc:

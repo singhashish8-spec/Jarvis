@@ -48,12 +48,17 @@ class DeployerAgent(BaseAgent):
 
         try:
             prompt = self._build_prompt(change_summary, target, context)
-            output = self.replicate_client.run(
+            run_result = self.replicate_client.run(
                 MODEL,
                 {"prompt": prompt, "max_new_tokens": 512, "temperature": 0.3},
                 version=MODEL_VERSION,
             )
-            result = {"task_id": task_id, "output": output, "target": target}
+            result = {
+                "task_id": task_id,
+                "output": run_result["output"],
+                "usage": run_result["usage"],
+                "target": target,
+            }
             self.complete_task(result)
             return result
         except Exception as exc:

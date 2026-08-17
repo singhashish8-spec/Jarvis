@@ -26,6 +26,16 @@ class Config:
     REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
     REPLICATE_TIMEOUT = 300  # seconds
 
+    # Replicate has no API for account balance, so this is a budget the
+    # user sets manually (matching what they've actually loaded at
+    # replicate.com/account/billing) for the dashboard to track estimated
+    # spend against. None (unset) means "don't show a limit".
+    REPLICATE_CREDIT_LIMIT_USD = (
+        float(os.getenv("REPLICATE_CREDIT_LIMIT_USD"))
+        if os.getenv("REPLICATE_CREDIT_LIMIT_USD")
+        else None
+    )
+
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 

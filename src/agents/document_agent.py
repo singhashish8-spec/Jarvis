@@ -38,10 +38,15 @@ class DocumentAgent(BaseAgent):
 
         try:
             prompt = self._build_prompt(subject, content, doc_type)
-            output = self.replicate_client.run(
+            run_result = self.replicate_client.run(
                 MODEL, {"prompt": prompt, "max_tokens": 1024, "temperature": 0.4}
             )
-            result = {"task_id": task_id, "output": output, "doc_type": doc_type}
+            result = {
+                "task_id": task_id,
+                "output": run_result["output"],
+                "usage": run_result["usage"],
+                "doc_type": doc_type,
+            }
             self.complete_task(result)
             return result
         except Exception as exc:

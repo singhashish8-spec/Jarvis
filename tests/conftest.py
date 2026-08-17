@@ -56,12 +56,33 @@ def client(monkeypatch):
     monkeypatch.setattr(db_client, "health_check", lambda: True)
     monkeypatch.setattr(r2_client, "health_check", lambda: True)
     monkeypatch.setattr(db_client, "save_task", lambda **kwargs: "test-task-id")
+    monkeypatch.setattr(db_client, "record_usage", lambda **kwargs: None)
+    monkeypatch.setattr(
+        db_client,
+        "get_usage_summary",
+        lambda: {
+            "tokens_used_today": 0,
+            "tokens_used_total": 0,
+            "estimated_cost_usd_today": 0.0,
+            "estimated_cost_usd_total": 0.0,
+        },
+    )
     monkeypatch.setattr(r2_client, "save_task_output", lambda *args, **kwargs: True)
 
+    mocked_run_result = {
+        "output": "mocked model output",
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "total_tokens": 30,
+            "predict_time_seconds": 1.0,
+            "estimated_cost_usd": 0.0014,
+        },
+    }
     for agent in ALL_AGENTS:
         monkeypatch.setattr(agent, "verify_api_key", lambda: True)
         monkeypatch.setattr(
-            agent.replicate_client, "run", lambda *a, **kw: "mocked model output"
+            agent.replicate_client, "run", lambda *a, **kw: mocked_run_result
         )
 
     with app.test_client() as test_client:

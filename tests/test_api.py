@@ -32,6 +32,37 @@ def test_status_endpoint(client):
     }
 
 
+def test_usage_endpoint(client):
+    response = client.get("/api/usage")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert "tokens_used_today" in data
+    assert "tokens_used_total" in data
+    assert "estimated_cost_usd_total" in data
+    assert "credit_limit_usd" in data
+    assert "cost_note" in data
+
+
+def test_usage_endpoint_no_limit_set_means_no_remaining(client, monkeypatch):
+    from src.config import config
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", None)
+    response = client.get("/api/usage")
+    data = json.loads(response.data)
+    assert data["credit_limit_usd"] is None
+    assert data["credit_remaining_usd"] is None
+
+
+def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
+    from src.config import config
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 10.0)
+    response = client.get("/api/usage")
+    data = json.loads(response.data)
+    assert data["credit_limit_usd"] == 10.0
+    assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
+
+
 def test_brainstorm_endpoint(client, sample_brainstorm_input):
     response = client.post(
         "/api/agents/brainstorm",
