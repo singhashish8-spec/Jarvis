@@ -63,6 +63,58 @@ def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
     assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
 
 
+def test_usage_endpoint_includes_by_agent_breakdown(client, monkeypatch):
+    from src.main import db_client
+
+    monkeypatch.setattr(
+        db_client,
+        "get_usage_by_agent_today",
+        lambda: [{"agent_type": "coder", "tokens_used": 50, "cost": 0.005}],
+    )
+    data = json.loads(client.get("/api/usage").data)
+    assert data["by_agent"] == [
+        {"agent_type": "coder", "tokens_used": 50, "cost": 0.005}
+    ]
+
+
+def test_usage_endpoint_includes_rate_limit_status_when_configured(client):
+    client.post(
+        "/api/settings",
+        data=json.dumps({"rate_limit_per_minute": 5}),
+        content_type="application/json",
+    )
+    data = json.loads(client.get("/api/usage").data)
+    assert data["rate_limit"]["limit_per_minute"] == 5
+    assert data["rate_limit"]["current"] == 0
+
+
+def test_usage_endpoint_rate_limit_status_null_when_unset(client):
+    data = json.loads(client.get("/api/usage").data)
+    assert data["rate_limit"] == {"limit_per_minute": None, "current": 0}
+
+
+def test_storage_endpoint_returns_r2_and_supabase_stats(client, monkeypatch):
+    from src.main import db_client, r2_client
+
+    monkeypatch.setattr(
+        r2_client,
+        "get_storage_stats",
+        lambda max_objects=5000: {
+            "total_bytes": 4096,
+            "object_count": 3,
+            "truncated": False,
+        },
+    )
+    monkeypatch.setattr(
+        db_client, "get_table_counts", lambda: {"tasks": 12, "usage": 3, "skills": 2}
+    )
+    response = client.get("/api/storage")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["r2"] == {"total_bytes": 4096, "object_count": 3, "truncated": False}
+    assert data["supabase_tables"] == {"tasks": 12, "usage": 3, "skills": 2}
+
+
 def test_set_credit_limit_saves_and_usage_reflects_it(client):
     response = client.post(
         "/api/settings/credit-limit",

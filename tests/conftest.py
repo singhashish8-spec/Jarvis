@@ -67,6 +67,21 @@ def client(monkeypatch):
             "estimated_cost_usd_total": 0.0,
         },
     )
+    monkeypatch.setattr(db_client, "get_usage_by_agent_today", lambda: [])
+    monkeypatch.setattr(
+        db_client,
+        "get_table_counts",
+        lambda: {"tasks": 0, "usage": 0, "skills": 0},
+    )
+    monkeypatch.setattr(
+        r2_client,
+        "get_storage_stats",
+        lambda max_objects=5000: {
+            "total_bytes": 0,
+            "object_count": 0,
+            "truncated": False,
+        },
+    )
     monkeypatch.setattr(r2_client, "save_task_output", lambda *args, **kwargs: True)
 
     # Fake settings store, in-memory per test, so POST -> GET round trips

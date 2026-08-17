@@ -27,6 +27,24 @@ authoritative source for what you've actually been charged.
 
 Also shows live totals (tokens today/total, estimated spend) pulled from `GET /api/usage`.
 
+### Sidebar usage popover
+
+Clicking the sidebar's usage readout (below the chat list) opens a quick-glance
+popover instead of jumping straight into Settings — a "Manage in Settings →"
+link at the bottom does that. It shows:
+
+- **Today's spend by agent** — a segmented bar + legend from `by_agent` in
+  `GET /api/usage`, one segment per agent that's actually run today.
+- **Credit limit** and, when Rate Limiting has a value set, a **requests
+  (last 60s)** bar — the same rolling-window count `_check_rate_limit()`
+  enforces, just displayed rather than acted on.
+- **Storage** — R2 file-backup size/count and Supabase row counts, from
+  `GET /api/storage`. See that endpoint's docs in
+  [API_SPEC.md](API_SPEC.md#get-apistorage) for what's (and isn't) counted.
+
+Clicking the DB/Replicate/Storage status row below it opens System Status
+directly, the same "click a readout, land on what manages it" pattern.
+
 ## Agent Defaults
 
 Per-agent matrix — enable/disable, model override, temperature, max tokens — via

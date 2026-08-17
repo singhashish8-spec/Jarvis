@@ -123,6 +123,7 @@
   .sidebar-footer .dot.ok { background: var(--ok); }
   .sidebar-footer .dot.bad { background: var(--error); }
 
+  .usage-widget-wrap { position: relative; }
   .usage-widget {
     display: block;
     width: 100%;
@@ -157,6 +158,74 @@
   }
   .usage-bar-fill.warn { background: var(--warn); }
   .usage-bar-fill.over { background: var(--error); }
+
+  .usage-popover {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 8px;
+    right: 8px;
+    margin-bottom: 6px;
+    background: #262626;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    z-index: 45;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .usage-popover.show { display: block; }
+  .usage-popover-section {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .usage-popover-section:last-of-type { border-bottom: none; margin-bottom: 10px; padding-bottom: 0; }
+  .usage-popover-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dimmer);
+    margin-bottom: 8px;
+  }
+  .usage-popover-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .usage-popover-row:last-child { margin-bottom: 0; }
+  .usage-popover-row .val { color: var(--text); }
+  .segmented-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--border-soft);
+    margin-bottom: 8px;
+  }
+  .segmented-bar .segment { height: 100%; }
+  .usage-popover-legend { display: flex; flex-direction: column; gap: 4px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+  .legend-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .legend-row .legend-name { flex: 1; }
+  .legend-row .legend-val { color: var(--text); }
+  .usage-popover-empty { font-size: 11px; color: var(--text-dimmer); }
+  .usage-popover-link {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: none;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .usage-popover-link:hover { background: #2f2f2f; color: var(--text); }
 
   .backdrop {
     display: none;
@@ -959,19 +1028,58 @@
       <span>＋</span> New chat
     </button>
     <div class="chat-list" id="chat-list"></div>
-    <button class="usage-widget" id="usage-widget" title="Open Usage &amp; Billing settings">
-      <div class="usage-row">
-        <span class="usage-label">Tokens today</span>
-        <span id="usage-tokens">—</span>
+    <div class="usage-widget-wrap">
+      <div class="usage-widget" id="usage-widget" tabindex="0" role="button" title="Open usage details">
+        <div class="usage-row">
+          <span class="usage-label">Tokens today</span>
+          <span id="usage-tokens">—</span>
+        </div>
+        <div class="usage-row" id="usage-cost-row">
+          <span class="usage-label">Est. spend</span>
+          <span id="usage-cost">—</span>
+        </div>
+        <div class="usage-bar" id="usage-bar" style="display:none;">
+          <div class="usage-bar-fill" id="usage-bar-fill"></div>
+        </div>
       </div>
-      <div class="usage-row" id="usage-cost-row">
-        <span class="usage-label">Est. spend</span>
-        <span id="usage-cost">—</span>
+      <div class="usage-popover" id="usage-popover">
+        <div class="usage-popover-section">
+          <div class="usage-popover-title">Today's spend by agent</div>
+          <div class="segmented-bar" id="agent-spend-bar"></div>
+          <div class="usage-popover-legend" id="agent-spend-legend"></div>
+        </div>
+        <div class="usage-popover-section">
+          <div class="usage-popover-row">
+            <span>Credit limit</span>
+            <span class="val" id="popover-credit-text">—</span>
+          </div>
+          <div class="usage-bar" id="popover-credit-bar" style="display:none;">
+            <div class="usage-bar-fill" id="popover-credit-fill"></div>
+          </div>
+        </div>
+        <div class="usage-popover-section" id="popover-rate-limit-section" style="display:none;">
+          <div class="usage-popover-row">
+            <span>Requests (last 60s)</span>
+            <span class="val" id="popover-rate-text">—</span>
+          </div>
+          <div class="usage-bar">
+            <div class="usage-bar-fill" id="popover-rate-fill"></div>
+          </div>
+        </div>
+        <div class="usage-popover-section">
+          <div class="usage-popover-title">Storage</div>
+          <div class="usage-popover-row">
+            <span>R2 (file backups)</span>
+            <span class="val" id="popover-r2-text">—</span>
+          </div>
+          <div class="usage-popover-row">
+            <span>Supabase (database rows)</span>
+            <span class="val" id="popover-supabase-text">—</span>
+          </div>
+        </div>
+        <button class="usage-popover-link" id="popover-manage-link">Manage in Settings →</button>
       </div>
-      <div class="usage-bar" id="usage-bar" style="display:none;">
-        <div class="usage-bar-fill" id="usage-bar-fill"></div>
-      </div>
-    </button>
+    </div>
     <div class="sidebar-footer" id="sidebar-footer" title="Open System Status settings">
       <span><span class="dot" id="dot-database"></span>DB</span>
       <span><span class="dot" id="dot-replicate"></span>Replicate</span>
@@ -1671,7 +1779,7 @@ async function loadUsage() {
     }
 
     document.getElementById("usage-widget").title =
-      (body.cost_note || "") + " Click to open Usage & Billing settings.";
+      (body.cost_note || "") + " Click for a full breakdown.";
   } catch (err) {
     // best-effort UI polish only
   }
@@ -2517,9 +2625,137 @@ function renderDangerZoneCategory(content) {
   });
 }
 
+// ---- usage & storage popover ----
+
+const AGENT_COLORS = {
+  brainstorm: "#60a5fa",
+  coder: "#34d399",
+  tester: "#fbbf24",
+  deployer: "#f472b6",
+  document: "#a78bfa",
+  qa: "#f87171",
+};
+
+function formatBytes(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + " GB";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + " MB";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + " KB";
+  return n + " B";
+}
+
+function renderAgentSpendBreakdown(byAgent) {
+  const bar = document.getElementById("agent-spend-bar");
+  const legend = document.getElementById("agent-spend-legend");
+  const rows = (byAgent || []).filter((r) => (r.cost || 0) > 0 || (r.tokens_used || 0) > 0);
+
+  if (!rows.length) {
+    bar.innerHTML = "";
+    legend.innerHTML = '<div class="usage-popover-empty">No usage yet today.</div>';
+    return;
+  }
+
+  const total = rows.reduce((sum, r) => sum + (r.cost || 0), 0);
+  const sorted = [...rows].sort((a, b) => (b.cost || 0) - (a.cost || 0));
+
+  bar.innerHTML = sorted.map((r) => {
+    const pct = total > 0 ? (r.cost / total) * 100 : 100 / rows.length;
+    return `<div class="segment" style="width:${pct}%;background:${AGENT_COLORS[r.agent_type] || "#6b7280"};"></div>`;
+  }).join("");
+
+  legend.innerHTML = sorted.map((r) => {
+    const agent = agentById(r.agent_type);
+    const pct = total > 0 ? Math.round((r.cost / total) * 100) : 0;
+    return `
+      <div class="legend-row">
+        <span class="legend-swatch" style="background:${AGENT_COLORS[r.agent_type] || "#6b7280"};"></span>
+        <span class="legend-name">${agent.icon} ${agent.label}</span>
+        <span class="legend-val">$${(r.cost || 0).toFixed(4)} · ${pct}%</span>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadUsagePopover() {
+  try {
+    const [usageRes, storageRes] = await Promise.all([
+      fetch("/api/usage"),
+      fetch("/api/storage"),
+    ]);
+    const usage = await usageRes.json();
+    const storage = await storageRes.json();
+
+    renderAgentSpendBreakdown(usage.by_agent);
+
+    const limit = usage.credit_limit_usd;
+    const spent = usage.estimated_cost_usd_total || 0;
+    const creditBar = document.getElementById("popover-credit-bar");
+    const creditFill = document.getElementById("popover-credit-fill");
+    if (limit) {
+      document.getElementById("popover-credit-text").textContent =
+        "$" + spent.toFixed(4) + " / $" + limit.toFixed(2);
+      creditBar.style.display = "block";
+      const pct = Math.min(100, (spent / limit) * 100);
+      creditFill.style.width = pct + "%";
+      creditFill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
+    } else {
+      document.getElementById("popover-credit-text").textContent = "$" + spent.toFixed(4) + " (no limit set)";
+      creditBar.style.display = "none";
+    }
+
+    const rl = usage.rate_limit || {};
+    const rlSection = document.getElementById("popover-rate-limit-section");
+    if (rl.limit_per_minute) {
+      rlSection.style.display = "block";
+      document.getElementById("popover-rate-text").textContent = rl.current + " / " + rl.limit_per_minute;
+      const pct = Math.min(100, (rl.current / rl.limit_per_minute) * 100);
+      const fill = document.getElementById("popover-rate-fill");
+      fill.style.width = pct + "%";
+      fill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
+    } else {
+      rlSection.style.display = "none";
+    }
+
+    const r2 = storage.r2 || {};
+    document.getElementById("popover-r2-text").textContent =
+      formatBytes(r2.total_bytes || 0) + (r2.truncated ? "+" : "") + " · " + (r2.object_count || 0) + " files";
+
+    const tables = storage.supabase_tables || {};
+    const totalRows = (tables.tasks || 0) + (tables.usage || 0) + (tables.skills || 0);
+    document.getElementById("popover-supabase-text").textContent =
+      totalRows + " rows (" + (tables.tasks || 0) + " tasks, " + (tables.skills || 0) + " skills)";
+  } catch (err) {
+    // best-effort UI polish only
+  }
+}
+
+function toggleUsagePopover() {
+  const popover = document.getElementById("usage-popover");
+  const opening = !popover.classList.contains("show");
+  popover.classList.toggle("show");
+  if (opening) loadUsagePopover();
+}
+
 // ---- wiring ----
 document.getElementById("settings-trigger").addEventListener("click", () => openSettings());
-document.getElementById("usage-widget").addEventListener("click", () => openSettings("usage_billing"));
+document.getElementById("usage-widget").addEventListener("click", toggleUsagePopover);
+document.getElementById("usage-widget").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggleUsagePopover();
+  }
+});
+document.addEventListener("click", (e) => {
+  const popover = document.getElementById("usage-popover");
+  const trigger = document.getElementById("usage-widget");
+  if (popover.classList.contains("show") && !popover.contains(e.target) && !trigger.contains(e.target)) {
+    popover.classList.remove("show");
+  }
+});
+document.getElementById("popover-manage-link").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("usage-popover").classList.remove("show");
+  openSettings("usage_billing");
+});
 document.getElementById("sidebar-footer").addEventListener("click", () => openSettings("system_status"));
 document.getElementById("settings-close").addEventListener("click", closeSettings);
 document.getElementById("settings-backdrop").addEventListener("click", (e) => {

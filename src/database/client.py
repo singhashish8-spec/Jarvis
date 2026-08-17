@@ -180,6 +180,45 @@ class DatabaseClient:
                 "estimated_cost_usd_total": 0.0,
             }
 
+    def get_usage_by_agent_today(self) -> List[Dict[str, Any]]:
+        """Today's usage, one row per agent_type (the `usage` table's own
+        shape — see UNIQUE(date, agent_type)) — backs the sidebar's
+        per-agent spend breakdown. Degrades to an empty list on failure;
+        the popover just shows no breakdown rather than erroring."""
+        today = datetime.now(timezone.utc).date().isoformat()
+        try:
+            result = (
+                self.client.table("usage")
+                .select("agent_type, tokens_used, cost")
+                .eq("date", today)
+                .execute()
+            )
+            return result.data or []
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to get today's usage by agent: %s", exc)
+            return []
+
+    def get_table_counts(self) -> Dict[str, int]:
+        """Row counts for the tables the dashboard's storage popover
+        shows — not disk bytes (Postgres only exposes that via a raw SQL
+        connection or a pre-created RPC function, neither of which this
+        REST-only client has), but the number of tasks/usage-days/skills
+        actually saved. Each table counted independently so one failing
+        doesn't zero out the others."""
+        counts: Dict[str, int] = {}
+        for table in ("tasks", "usage", "skills"):
+            try:
+                result = (
+                    self.client.table(table)
+                    .select("*", count="exact", head=True)
+                    .execute()
+                )
+                counts[table] = result.count or 0
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Failed to count %s: %s", table, exc)
+                counts[table] = 0
+        return counts
+
     def get_setting(self, key: str) -> Optional[str]:
         """Fetch a user-configurable setting (e.g. the credit-limit budget
         set from the dashboard). None if unset or the table/DB is

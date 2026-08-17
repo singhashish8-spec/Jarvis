@@ -59,14 +59,14 @@ not filled in yet)
 
 ## `GET /api/usage`
 
-Live token usage and estimated spend, for the dashboard's usage widget.
-**Replicate has no API for real account balance/credit** — `/v1/account`
-only returns username/type, nothing financial (confirmed against
-Replicate's own docs). Every number here is derived from what each
-prediction actually reports (token counts when the model provides them,
-compute time otherwise — see [AGENTS.md](AGENTS.md#cost-estimation)), and
-`credit_limit_usd` is a budget you set yourself (via the pencil icon next
-to "Est. spend" in the dashboard sidebar, or `REPLICATE_CREDIT_LIMIT_USD`
+Live token usage and estimated spend, for the sidebar's usage popover and
+Settings > Usage & Billing. **Replicate has no API for real account
+balance/credit** — `/v1/account` only returns username/type, nothing
+financial (confirmed against Replicate's own docs). Every number here is
+derived from what each prediction actually reports (token counts when the
+model provides them, compute time otherwise — see
+[AGENTS.md](AGENTS.md#cost-estimation)), and `credit_limit_usd` is a budget
+you set yourself (Settings > Usage & Billing, or `REPLICATE_CREDIT_LIMIT_USD`
 as a fallback) to match what you've loaded on
 [replicate.com/account/billing](https://replicate.com/account/billing) —
 that page remains the authoritative source for your real balance.
@@ -80,22 +80,54 @@ that page remains the authoritative source for your real balance.
   "estimated_cost_usd_total": 1.9031,
   "credit_limit_usd": 10.0,
   "credit_remaining_usd": 8.0969,
-  "cost_note": "Estimated from Replicate's own per-prediction metrics (tokens or compute time) — Replicate's API does not expose real account balance. See replicate.com/account/billing for the authoritative figure."
+  "cost_note": "Estimated from Replicate's own per-prediction metrics (tokens or compute time) — Replicate's API does not expose real account balance. See replicate.com/account/billing for the authoritative figure.",
+  "budget_alert": {"threshold_pct": 80.0, "current_pct": 19.0, "triggered": false},
+  "by_agent": [{"agent_type": "brainstorm", "tokens_used": 2000, "cost": 0.05}],
+  "rate_limit": {"limit_per_minute": 20, "current": 4}
 }
 ```
 
 `credit_limit_usd` and `credit_remaining_usd` are `null` when no budget
-has been saved (dashboard or env var) — the dashboard just shows tokens
-and estimated spend with no budget bar in that case.
+has been saved (dashboard or env var) — the sidebar just shows tokens and
+estimated spend with no budget bar in that case. `by_agent` is today's
+`usage` rows (one per agent that's run at least once today) — the
+sidebar popover renders it as a segmented bar. `rate_limit.limit_per_minute`
+is `null` when Rate Limiting is unset.
+
+---
+
+## `GET /api/storage`
+
+R2 (file backups) and Supabase (row counts) storage usage, for the
+sidebar's usage popover. Both sides are best-effort — a failure on either
+degrades to zeros rather than breaking the whole response. Postgres disk
+size isn't included: that requires a raw SQL connection or a pre-created
+RPC function, neither of which this REST-only client has — row counts are
+the closest available signal.
+
+**Response `200`**
+```json
+{
+  "r2": {"total_bytes": 18400000, "object_count": 42, "truncated": false},
+  "supabase_tables": {"tasks": 42, "usage": 6, "skills": 3}
+}
+```
+
+`r2.truncated` is `true` if the bucket has more than 5000 objects (the
+listing stops there rather than paging through an unbounded bucket on
+every popover open); `total_bytes`/`object_count` reflect only what was
+counted in that case, not the true total.
 
 ---
 
 ## `POST /api/settings/credit-limit`
 
 Saves the budget `GET /api/usage` tracks spend against, persisted in the
-database's `settings` table — this is what the dashboard's pencil-icon
-editor calls, so setting a budget doesn't require touching Vercel env
-vars or `.env`. A saved value takes precedence over
+database's `settings` table. Kept as a dedicated endpoint for backward
+compatibility — Settings > Usage & Billing's credit-limit field now
+saves through the generic `POST /api/settings` instead, with identical
+validation. Either way, setting a budget doesn't require touching Vercel
+env vars or `.env`, and a saved value takes precedence over
 `REPLICATE_CREDIT_LIMIT_USD`.
 
 | Field | Type | Required | Notes |

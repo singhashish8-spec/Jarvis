@@ -215,7 +215,41 @@ def usage_check():
             and current_pct >= threshold_pct
         ),
     }
+
+    summary["by_agent"] = db_client.get_usage_by_agent_today()
+    summary["rate_limit"] = _get_rate_limit_status()
     return jsonify(summary), 200
+
+
+def _get_rate_limit_status() -> Dict[str, Any]:
+    """Current standing against Rate Limiting's "max requests per minute"
+    — read-only (unlike `_check_rate_limit`, this never rejects anything),
+    for the usage popover's rolling-window bar. Skips the count query
+    entirely when no limit is set, same short-circuit as enforcement."""
+    saved = db_client.get_setting("rate_limit_per_minute")
+    try:
+        limit = int(float(saved)) if saved else 0
+    except ValueError:
+        limit = 0
+    current = db_client.count_recent_tasks(60) if limit > 0 else 0
+    return {"limit_per_minute": limit or None, "current": current}
+
+
+@app.route("/api/storage", methods=["GET"])
+def storage_check():
+    """R2 (file backups) and Supabase (row counts) storage usage, for the
+    dashboard's usage popover. Best-effort on both sides — a failure in
+    either degrades to zeros rather than breaking the whole response, the
+    same pattern as /api/usage."""
+    return (
+        jsonify(
+            {
+                "r2": r2_client.get_storage_stats(),
+                "supabase_tables": db_client.get_table_counts(),
+            }
+        ),
+        200,
+    )
 
 
 def _save_setting(key: str, raw_value: Any) -> str:
