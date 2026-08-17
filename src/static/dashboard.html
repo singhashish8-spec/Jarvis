@@ -111,7 +111,9 @@
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    cursor: pointer;
   }
+  .sidebar-footer:hover { color: var(--text-dim); }
   .sidebar-footer .dot {
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--text-dimmer);
@@ -122,46 +124,25 @@
   .sidebar-footer .dot.bad { background: var(--error); }
 
   .usage-widget {
+    display: block;
+    width: 100%;
+    border: none;
     border-top: 1px solid var(--border-soft);
+    background: none;
     padding: 10px 10px 6px;
     font-size: 11px;
     color: var(--text-dimmer);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
   }
+  .usage-widget:hover { background: #202020; }
   .usage-row {
     display: flex;
     justify-content: space-between;
     margin-bottom: 5px;
   }
   .usage-row .usage-label { color: var(--text-dim); }
-  .usage-cost-value {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .usage-edit-btn {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    color: var(--text-dimmer);
-    font-size: 11px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px 3px;
-    border-radius: 4px;
-  }
-  .usage-edit-btn:hover { background: #333; color: var(--text); }
-  .usage-limit-input {
-    width: 90px;
-    background: none;
-    border: none;
-    outline: none;
-    border-bottom: 1px solid var(--text-dim);
-    color: var(--text);
-    font-size: 11px;
-    font-family: inherit;
-    text-align: right;
-    padding: 0;
-  }
   .usage-bar {
     height: 4px;
     border-radius: 2px;
@@ -978,23 +959,20 @@
       <span>＋</span> New chat
     </button>
     <div class="chat-list" id="chat-list"></div>
-    <div class="usage-widget" id="usage-widget" title="">
+    <button class="usage-widget" id="usage-widget" title="Open Usage &amp; Billing settings">
       <div class="usage-row">
         <span class="usage-label">Tokens today</span>
         <span id="usage-tokens">—</span>
       </div>
       <div class="usage-row" id="usage-cost-row">
         <span class="usage-label">Est. spend</span>
-        <span class="usage-cost-value" id="usage-cost-value">
-          <span id="usage-cost">—</span>
-          <button class="usage-edit-btn" id="usage-edit-limit" title="Set a budget">✎</button>
-        </span>
+        <span id="usage-cost">—</span>
       </div>
       <div class="usage-bar" id="usage-bar" style="display:none;">
         <div class="usage-bar-fill" id="usage-bar-fill"></div>
       </div>
-    </div>
-    <div class="sidebar-footer" id="sidebar-footer">
+    </button>
+    <div class="sidebar-footer" id="sidebar-footer" title="Open System Status settings">
       <span><span class="dot" id="dot-database"></span>DB</span>
       <span><span class="dot" id="dot-replicate"></span>Replicate</span>
       <span><span class="dot" id="dot-storage"></span>Storage</span>
@@ -1665,8 +1643,6 @@ function formatTokenCount(n) {
   return String(n);
 }
 
-let currentCreditLimit = null;
-
 async function loadUsage() {
   try {
     const res = await fetch("/api/usage");
@@ -1676,91 +1652,29 @@ async function loadUsage() {
       formatTokenCount(body.tokens_used_today || 0) +
       " (" + formatTokenCount(body.tokens_used_total || 0) + " total)";
 
-    const limit = body.credit_limit_usd;
-    currentCreditLimit = limit !== null && limit !== undefined ? limit : null;
+    const limit = body.credit_limit_usd !== null && body.credit_limit_usd !== undefined ? body.credit_limit_usd : null;
     const spent = body.estimated_cost_usd_total || 0;
     const bar = document.getElementById("usage-bar");
     const fill = document.getElementById("usage-bar-fill");
-    const costText = currentCreditLimit
-      ? "$" + spent.toFixed(4) + " / $" + currentCreditLimit.toFixed(2)
+
+    document.getElementById("usage-cost").textContent = limit
+      ? "$" + spent.toFixed(4) + " / $" + limit.toFixed(2)
       : "$" + spent.toFixed(4);
 
-    renderUsageCostValue(costText);
-
-    if (currentCreditLimit) {
+    if (limit) {
       bar.style.display = "block";
-      const pct = Math.min(100, (spent / currentCreditLimit) * 100);
+      const pct = Math.min(100, (spent / limit) * 100);
       fill.style.width = pct + "%";
       fill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
     } else {
       bar.style.display = "none";
     }
 
-    document.getElementById("usage-widget").title = body.cost_note || "";
+    document.getElementById("usage-widget").title =
+      (body.cost_note || "") + " Click to open Usage & Billing settings.";
   } catch (err) {
     // best-effort UI polish only
   }
-}
-
-function renderUsageCostValue(costText) {
-  const wrap = document.getElementById("usage-cost-row").querySelector(".usage-cost-value, .usage-limit-input");
-  const replacement = document.createElement("span");
-  replacement.className = "usage-cost-value";
-  replacement.id = "usage-cost-value";
-  replacement.innerHTML =
-    '<span id="usage-cost">' + costText + '</span>' +
-    '<button class="usage-edit-btn" id="usage-edit-limit" title="Set a budget">✎</button>';
-  wrap.replaceWith(replacement);
-  replacement.querySelector("#usage-edit-limit").addEventListener("click", startEditCreditLimit);
-}
-
-function startEditCreditLimit() {
-  const wrap = document.getElementById("usage-cost-value");
-  const input = document.createElement("input");
-  input.type = "number";
-  input.inputMode = "decimal";
-  input.min = "0";
-  input.step = "0.01";
-  input.className = "usage-limit-input";
-  input.placeholder = "budget $";
-  input.value = currentCreditLimit != null ? currentCreditLimit : "";
-  wrap.replaceWith(input);
-  input.focus();
-  input.select();
-
-  let cancelled = false;
-  const commit = async () => {
-    if (cancelled) return;
-    const raw = input.value.trim();
-    const value = raw === "" ? null : parseFloat(raw);
-    if (value !== null && (isNaN(value) || value < 0)) {
-      loadUsage();
-      return;
-    }
-    try {
-      const res = await fetch("/api/settings/credit-limit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credit_limit_usd: value }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        showToast(body.message || "Couldn't save budget.");
-      }
-    } catch (err) {
-      showToast("Couldn't save budget — network error.");
-    }
-    loadUsage();
-  };
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      input.blur();
-    } else if (e.key === "Escape") {
-      cancelled = true;
-      loadUsage();
-    }
-  });
-  input.addEventListener("blur", commit);
 }
 
 // ---- wiring ----
@@ -1871,13 +1785,13 @@ function fieldsFor(categoryId) {
   return settingsState.settings.filter((s) => s.category === categoryId);
 }
 
-async function openSettings() {
+async function openSettings(category) {
   document.getElementById("settings-backdrop").classList.add("show");
   if (!settingsState.settings.length) {
     await loadSettingsSchema();
   }
   renderSettingsNav();
-  selectSettingsCategory(settingsState.activeCategory);
+  selectSettingsCategory(category || settingsState.activeCategory);
 }
 
 function closeSettings() {
@@ -2604,7 +2518,9 @@ function renderDangerZoneCategory(content) {
 }
 
 // ---- wiring ----
-document.getElementById("settings-trigger").addEventListener("click", openSettings);
+document.getElementById("settings-trigger").addEventListener("click", () => openSettings());
+document.getElementById("usage-widget").addEventListener("click", () => openSettings("usage_billing"));
+document.getElementById("sidebar-footer").addEventListener("click", () => openSettings("system_status"));
 document.getElementById("settings-close").addEventListener("click", closeSettings);
 document.getElementById("settings-backdrop").addEventListener("click", (e) => {
   if (e.target.id === "settings-backdrop") closeSettings();
@@ -2614,25 +2530,47 @@ if (localStorage.getItem("jarvisCompactMode") === "1") {
 }
 
 // ---- init ----
-if (!getCurrentChat() && chats.length) {
-  currentChatId = chats[0].id;
+async function applyDefaultAgentSetting() {
+  // Settings > Agent Defaults' "default_agent" only applies when nothing
+  // else already determined the agent (an existing chat's own agent
+  // always wins — this is just what a brand-new chat starts on).
+  try {
+    const res = await fetch("/api/settings");
+    const body = await res.json();
+    const entry = (body.settings || []).find((s) => s.key === "default_agent");
+    if (entry && entry.value && AGENTS.some((a) => a.id === entry.value)) {
+      selectedAgentId = entry.value;
+    }
+  } catch (err) {
+    // fall back to the hardcoded default silently
+  }
 }
-if (currentChatId && !openTabs.includes(currentChatId)) {
-  openTabs.push(currentChatId);
-}
-const initialChat = getCurrentChat();
-if (initialChat) selectedAgentId = initialChat.agentId;
-saveChats();
 
-renderAgentPicker();
-renderTabStrip();
-renderSidebar();
-renderThread();
-loadStatus();
-loadUsage();
-setInterval(loadStatus, 20000);
-setInterval(loadUsage, 20000);
-document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
+(async () => {
+  if (!getCurrentChat() && chats.length) {
+    currentChatId = chats[0].id;
+  }
+  if (currentChatId && !openTabs.includes(currentChatId)) {
+    openTabs.push(currentChatId);
+  }
+  const initialChat = getCurrentChat();
+  if (initialChat) {
+    selectedAgentId = initialChat.agentId;
+  } else {
+    await applyDefaultAgentSetting();
+  }
+  saveChats();
+
+  renderAgentPicker();
+  renderTabStrip();
+  renderSidebar();
+  renderThread();
+  loadStatus();
+  loadUsage();
+  setInterval(loadStatus, 20000);
+  setInterval(loadUsage, 20000);
+  document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
+})();
 </script>
 
 </body>
