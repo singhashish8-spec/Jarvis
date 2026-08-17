@@ -271,8 +271,8 @@ def add_security_headers(response):
 
 if __name__ == "__main__":
     debug_mode = os.getenv("DEBUG", "False") == "True"
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 5000))
+    host = os.getenv("HOST") or "0.0.0.0"
+    port = int(os.getenv("PORT") or 5000)
 
     logger.info("Starting Jarvis API...")
     logger.info("Debug: %s", debug_mode)
