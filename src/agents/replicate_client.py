@@ -20,11 +20,14 @@ import time
 from typing import Any, Dict, Optional
 
 import requests
+from requests.exceptions import RequestException
 
 logger = logging.getLogger(__name__)
 
 REPLICATE_API_BASE = "https://api.replicate.com/v1"
 TERMINAL_STATUSES = {"succeeded", "failed", "canceled"}
+MAX_NETWORK_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 
 class ReplicateClient:
@@ -42,6 +45,26 @@ class ReplicateClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """requests.request with retries for transient network failures
+        (connection resets, timeouts) — not for a model actually failing,
+        which should surface immediately rather than be retried."""
+        last_exc: Optional[RequestException] = None
+        for attempt in range(1, MAX_NETWORK_RETRIES + 1):
+            try:
+                return requests.request(method, url, **kwargs)
+            except RequestException as exc:
+                last_exc = exc
+                logger.warning(
+                    "Replicate request attempt %d/%d failed: %s",
+                    attempt,
+                    MAX_NETWORK_RETRIES,
+                    exc,
+                )
+                if attempt < MAX_NETWORK_RETRIES:
+                    time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+        raise last_exc
 
     def run(
         self,
@@ -70,8 +93,8 @@ class ReplicateClient:
             create_url = f"{REPLICATE_API_BASE}/models/{model}/predictions"
             payload = {"input": input_data}
 
-        response = requests.post(
-            create_url, headers=self._headers(), json=payload, timeout=30
+        response = self._request(
+            "POST", create_url, headers=self._headers(), json=payload, timeout=30
         )
         response.raise_for_status()
         prediction = response.json()
@@ -85,7 +108,9 @@ class ReplicateClient:
                 )
             time.sleep(poll_interval)
             elapsed += poll_interval
-            response = requests.get(get_url, headers=self._headers(), timeout=30)
+            response = self._request(
+                "GET", get_url, headers=self._headers(), timeout=30
+            )
             response.raise_for_status()
             prediction = response.json()
 

@@ -34,14 +34,20 @@ class DeployerAgent(BaseAgent):
         return self.plan_deployment(**kwargs)
 
     def plan_deployment(
-        self, change_summary: str, target: str = "Vercel"
+        self, change_summary: str, target: str = "Vercel", context: str = ""
     ) -> Dict[str, Any]:
-        """Draft a deployment plan for `change_summary` targeting `target`."""
-        task_id = self.create_task({"change_summary": change_summary, "target": target})
+        """Draft a deployment plan for `change_summary` targeting `target`.
+
+        `context` carries prior conversation turns for follow-up requests
+        — see BrainstormAgent for the same pattern.
+        """
+        task_id = self.create_task(
+            {"change_summary": change_summary, "target": target, "context": context}
+        )
         logger.info("Planning deployment: %s", change_summary)
 
         try:
-            prompt = self._build_prompt(change_summary, target)
+            prompt = self._build_prompt(change_summary, target, context)
             output = self.replicate_client.run(
                 MODEL,
                 {"prompt": prompt, "max_new_tokens": 512, "temperature": 0.3},
@@ -55,8 +61,10 @@ class DeployerAgent(BaseAgent):
             self.fail_task(str(exc))
             raise
 
-    def _build_prompt(self, change_summary: str, target: str) -> str:
+    def _build_prompt(self, change_summary: str, target: str, context: str) -> str:
+        context_line = f"Earlier in this conversation:\n{context}\n" if context else ""
         return f"""
+        {context_line}
         Draft a deployment checklist for deploying this change to {target}:
         {change_summary}
 

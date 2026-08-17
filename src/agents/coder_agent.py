@@ -32,16 +32,30 @@ class CoderAgent(BaseAgent):
         return self.generate_code(**kwargs)
 
     def generate_code(
-        self, requirements: str, tech_stack: str = "Python", style: str = ""
+        self,
+        requirements: str,
+        tech_stack: str = "Python",
+        style: str = "",
+        context: str = "",
     ) -> Dict[str, Any]:
-        """Generate code satisfying `requirements` in `tech_stack`."""
+        """Generate code satisfying `requirements` in `tech_stack`.
+
+        `context` carries prior conversation turns for follow-up requests
+        ("now add error handling to that") — see BrainstormAgent for the
+        same pattern.
+        """
         task_id = self.create_task(
-            {"requirements": requirements, "tech_stack": tech_stack, "style": style}
+            {
+                "requirements": requirements,
+                "tech_stack": tech_stack,
+                "style": style,
+                "context": context,
+            }
         )
         logger.info("Generating code: %s", requirements)
 
         try:
-            prompt = self._build_prompt(requirements, tech_stack, style)
+            prompt = self._build_prompt(requirements, tech_stack, style, context)
             output = self.replicate_client.run(
                 MODEL,
                 {
@@ -65,9 +79,13 @@ class CoderAgent(BaseAgent):
             self.fail_task(str(exc))
             raise
 
-    def _build_prompt(self, requirements: str, tech_stack: str, style: str) -> str:
+    def _build_prompt(
+        self, requirements: str, tech_stack: str, style: str, context: str
+    ) -> str:
         style_line = f"Style: {style}" if style else ""
+        context_line = f"Earlier in this conversation:\n{context}\n" if context else ""
         return f"""
+        {context_line}
         Generate production-ready {tech_stack} code for:
         {requirements}
 

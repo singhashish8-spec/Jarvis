@@ -2,480 +2,831 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Jarvis</title>
 <style>
   :root {
-    --bg: #0b0d12;
-    --panel: #151822;
-    --panel-2: #1c1f2b;
-    --border: #2a2e3d;
-    --text: #e8e9ee;
-    --text-dim: #9aa0b4;
-    --accent: #7c9cff;
+    --sidebar-bg: #171717;
+    --main-bg: #212121;
+    --bubble-user: #2f2f2f;
+    --input-bg: #2f2f2f;
+    --border: #2f2f2f;
+    --border-soft: #3a3a3a;
+    --text: #ececec;
+    --text-dim: #8e8ea0;
+    --text-dimmer: #6e6e80;
+    --error: #f87171;
     --ok: #4ade80;
-    --bad: #f87171;
-    --warn: #fbbf24;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
   body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--main-bg);
     color: var(--text);
-    padding-bottom: 40px;
+    overflow: hidden;
   }
-  header {
-    padding: 20px 16px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  h1 {
-    margin: 0;
-    font-size: 22px;
-    letter-spacing: 0.5px;
-  }
-  h1 span { color: var(--accent); }
-  .subtitle { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
 
-  .status-row {
+  .app {
     display: flex;
-    gap: 14px;
-    margin-top: 12px;
-    flex-wrap: wrap;
+    height: 100dvh;
+    height: 100vh;
   }
-  .status-item {
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 268px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    z-index: 30;
+  }
+  .new-chat-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-dim);
-    flex-shrink: 0;
-  }
-  .dot.ok { background: var(--ok); }
-  .dot.bad { background: var(--bad); }
-
-  main {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-
-  .tabs {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tab {
-    flex-shrink: 0;
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--text-dim);
-    font-size: 13px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .tab.active {
-    background: var(--accent);
-    color: #0b0d12;
-    border-color: var(--accent);
-    font-weight: 600;
-  }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 16px;
-  }
-  .panel h2 {
-    margin: 0 0 4px;
-    font-size: 16px;
-  }
-  .panel .desc {
-    color: var(--text-dim);
-    font-size: 12px;
-    margin-bottom: 14px;
-  }
-
-  label {
-    display: block;
-    font-size: 12px;
-    color: var(--text-dim);
-    margin: 12px 0 6px;
-  }
-  label .req { color: var(--warn); }
-  input[type="text"], textarea, select {
-    width: 100%;
+    gap: 8px;
     padding: 10px 12px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: transparent;
     color: var(--text);
     font-size: 14px;
-    font-family: inherit;
-  }
-  textarea { min-height: 90px; resize: vertical; font-family: ui-monospace, monospace; }
-  input:focus, textarea:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  button.submit {
-    margin-top: 16px;
-    width: 100%;
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    background: var(--accent);
-    color: #0b0d12;
-    font-size: 14px;
-    font-weight: 600;
     cursor: pointer;
-  }
-  button.submit:disabled { opacity: 0.6; cursor: default; }
-
-  .result {
-    margin-top: 14px;
-    border-top: 1px solid var(--border);
-    padding-top: 14px;
-    display: none;
-  }
-  .result.show { display: block; }
-  .result-meta {
-    font-size: 11px;
-    color: var(--text-dim);
     margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
   }
-  .result pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 13px;
-    line-height: 1.5;
-    margin: 0;
-    max-height: 420px;
+  .new-chat-btn:hover { background: #2a2a2a; }
+  .chat-list {
+    flex: 1;
     overflow-y: auto;
   }
-  .result.error pre { border-color: var(--bad); color: var(--bad); }
-
-  .thinking {
-    display: none;
-    margin-top: 14px;
-    font-size: 13px;
-    color: var(--text-dim);
+  .chat-item {
+    display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .thinking.show { display: flex; }
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .history {
-    margin-top: 24px;
-  }
-  .history h3 {
-    font-size: 13px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-  }
-  .history-item {
-    padding: 10px 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
+    padding: 9px 10px;
     border-radius: 8px;
-    margin-bottom: 8px;
     cursor: pointer;
     font-size: 13px;
-  }
-  .history-item .agent-badge {
-    display: inline-block;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--accent);
-    margin-bottom: 4px;
-  }
-  .history-item .snippet {
     color: var(--text-dim);
+    position: relative;
+  }
+  .chat-item:hover { background: #212121; }
+  .chat-item.active { background: #2a2a2a; color: var(--text); }
+  .chat-icon { flex-shrink: 0; font-size: 14px; }
+  .chat-title {
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .empty-hint {
+  .chat-delete {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-dimmer);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    display: none;
+    line-height: 1;
+  }
+  .chat-item:hover .chat-delete { display: block; }
+  .chat-delete:hover { color: var(--error); }
+
+  .sidebar-footer {
+    border-top: 1px solid var(--border-soft);
+    padding: 10px 8px 4px;
+    font-size: 11px;
+    color: var(--text-dimmer);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sidebar-footer .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-dimmer);
+    display: inline-block;
+    margin-right: 4px;
+  }
+  .sidebar-footer .dot.ok { background: var(--ok); }
+  .sidebar-footer .dot.bad { background: var(--error); }
+
+  .backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 20;
+  }
+  .backdrop.show { display: block; }
+
+  /* ---------- Main ---------- */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+  .agent-picker-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 8px;
+  }
+  .agent-picker-btn:hover { background: #2a2a2a; }
+  .chevron { color: var(--text-dim); font-size: 11px; }
+
+  .agent-menu {
+    display: none;
+    position: absolute;
+    top: 48px;
+    left: 10px;
+    background: #2a2a2a;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    width: 300px;
+    max-width: calc(100vw - 20px);
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 40;
+  }
+  .agent-menu.show { display: block; }
+  .agent-option {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .agent-option:hover { background: #343434; }
+  .agent-option.active { background: #343434; }
+  .agent-option .icon { font-size: 18px; margin-top: 1px; }
+  .agent-option .name { font-size: 14px; font-weight: 600; }
+  .agent-option .desc { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+  .agent-option .model { font-size: 11px; color: var(--text-dimmer); margin-top: 2px; }
+
+  /* ---------- Thread ---------- */
+  .thread-wrap {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+  }
+  .thread {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 8px;
+  }
+
+  .msg { display: flex; gap: 12px; margin-bottom: 22px; }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .bubble {
+    background: var(--bubble-user);
+    border-radius: 18px;
+    padding: 10px 16px;
+    max-width: 80%;
+    font-size: 15px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.assistant { align-items: flex-start; }
+  .avatar {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6b6b6b, #3a3a3a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    color: #fff;
+  }
+  .msg.assistant .content {
+    font-size: 15px;
+    line-height: 1.65;
+    max-width: calc(100% - 44px);
+    overflow-x: hidden;
+  }
+  .msg.assistant.error .content { color: var(--error); }
+  .msg.assistant .content p { margin: 0 0 12px; }
+  .msg.assistant .content p:last-child { margin-bottom: 0; }
+  .msg.assistant .content ul, .msg.assistant .content ol { margin: 0 0 12px; padding-left: 22px; }
+  .msg.assistant .content li { margin-bottom: 4px; }
+  .msg.assistant .content h2, .msg.assistant .content h3, .msg.assistant .content h4 {
+    margin: 16px 0 8px;
+  }
+  .msg.assistant .content code {
+    background: #2f2f2f;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  .msg-meta {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dimmer);
+  }
+
+  .code-block {
+    background: #1a1a1a;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    margin: 10px 0 14px;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: #262626;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .copy-btn {
+    background: none;
+    border: none;
     color: var(--text-dim);
     font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .copy-btn:hover { background: #3a3a3a; color: var(--text); }
+  .code-block pre {
+    margin: 0;
+    padding: 12px;
+    overflow-x: auto;
+  }
+  .code-block code {
+    background: none !important;
+    padding: 0 !important;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    white-space: pre;
+  }
+
+  .typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+  }
+  .typing-bubble .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    animation: blink 1.2s infinite;
+  }
+  .typing-bubble .dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-bubble .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  .typing-note { font-size: 12px; color: var(--text-dimmer); margin-left: 4px; }
+
+  /* ---------- Empty state ---------- */
+  .empty-state {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    height: 100%;
+    padding: 20px;
+  }
+  .empty-state.show { display: flex; }
+  .empty-state .logo { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .empty-state .logo .dot { color: var(--text-dim); }
+  .empty-state .tagline { color: var(--text-dim); font-size: 14px; margin-bottom: 24px; }
+  .example-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 420px;
+  }
+  .example-chip {
+    padding: 12px 14px;
+    background: #2a2a2a;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: left;
+    cursor: pointer;
+  }
+  .example-chip:hover { background: #313131; color: var(--text); }
+
+  /* ---------- Composer ---------- */
+  .composer-wrap {
+    padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  }
+  .composer {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 24px;
+    padding: 10px 10px 10px 18px;
+  }
+  .composer textarea {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    resize: none;
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.4;
+    max-height: 200px;
+    padding: 6px 0;
+  }
+  .composer textarea::placeholder { color: var(--text-dimmer); }
+  .send-btn {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: #ffffff;
+    color: #0b0d12;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .send-btn:disabled { background: #4a4a4a; color: #8e8e8e; cursor: default; }
+  .composer-hint {
+    max-width: 720px;
+    margin: 6px auto 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dimmer);
+  }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .hamburger { display: block; }
+    .msg.user .bubble { max-width: 88%; }
+    .msg.assistant .content { max-width: calc(100% - 40px); }
   }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>JARVIS<span>.</span></h1>
-  <div class="subtitle">Your AI agent team — pick one, give it a task.</div>
-  <div class="status-row" id="status-row">
-    <div class="status-item"><span class="dot" id="dot-database"></span>Database</div>
-    <div class="status-item"><span class="dot" id="dot-replicate"></span>Replicate</div>
-    <div class="status-item"><span class="dot" id="dot-storage"></span>Storage</div>
-  </div>
-</header>
+<div class="app">
+  <div class="backdrop" id="backdrop"></div>
 
-<main>
-  <div class="tabs" id="tabs"></div>
-
-  <div class="panel">
-    <h2 id="agent-title"></h2>
-    <div class="desc" id="agent-desc"></div>
-    <form id="agent-form"></form>
-    <div class="thinking" id="thinking">
-      <div class="spinner"></div>
-      <span id="thinking-text">Thinking…</span>
+  <aside class="sidebar" id="sidebar">
+    <button class="new-chat-btn" id="new-chat-btn">
+      <span>＋</span> New chat
+    </button>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="sidebar-footer" id="sidebar-footer">
+      <span><span class="dot" id="dot-database"></span>DB</span>
+      <span><span class="dot" id="dot-replicate"></span>Replicate</span>
+      <span><span class="dot" id="dot-storage"></span>Storage</span>
     </div>
-    <div class="result" id="result">
-      <div class="result-meta">
-        <span id="result-task-id"></span>
-        <span id="result-time"></span>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="hamburger" id="hamburger">☰</button>
+      <button class="agent-picker-btn" id="agent-picker-btn"></button>
+      <div class="agent-menu" id="agent-menu"></div>
+    </div>
+
+    <div class="thread-wrap">
+      <div class="empty-state" id="empty-state">
+        <div class="logo">JARVIS<span class="dot">.</span></div>
+        <div class="tagline" id="empty-tagline"></div>
+        <div class="example-chips" id="example-chips"></div>
       </div>
-      <pre id="result-output"></pre>
+      <div class="thread" id="thread"></div>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="composer-input" rows="1" placeholder="Message Jarvis…"></textarea>
+        <button class="send-btn" id="composer-send" disabled>↑</button>
+      </div>
+      <div class="composer-hint">Jarvis calls real AI models — replies can take a few seconds to ~90s.</div>
     </div>
   </div>
-
-  <div class="history">
-    <h3>Recent (this session)</h3>
-    <div id="history-list"><div class="empty-hint">Nothing yet — try an agent above.</div></div>
-  </div>
-</main>
+</div>
 
 <script>
 const AGENTS = [
   {
-    id: "brainstorm", label: "Brainstorm", endpoint: "/api/agents/brainstorm",
-    desc: "Ideas, options, and strategy recommendations. (Llama 3 70B)",
-    fields: [
-      { name: "topic", label: "Topic", type: "text", required: true },
-      { name: "context", label: "Context", type: "text" },
-      { name: "style", label: "Style", type: "select", options: ["detailed", "concise", "bullet_points"] },
-    ],
+    id: "brainstorm", icon: "💡", label: "Brainstorm", model: "Llama 3 70B",
+    endpoint: "/api/agents/brainstorm", primaryField: "topic", contextField: "context",
+    desc: "Ideas, options, and strategy recommendations.",
+    placeholder: "Ask Jarvis to brainstorm anything…",
+    examples: ["Ideas for a warehouse layout", "Ways to onboard new employees faster", "Marketing angles for a new app"],
   },
   {
-    id: "coder", label: "Coder", endpoint: "/api/agents/code",
-    desc: "Generates working code from a plain-language requirement. (DeepSeek-Coder 33B)",
-    fields: [
-      { name: "requirements", label: "Requirements", type: "textarea", required: true },
-      { name: "tech_stack", label: "Tech stack", type: "text", placeholder: "Python" },
-      { name: "style", label: "Style", type: "text" },
-    ],
+    id: "coder", icon: "💻", label: "Coder", model: "DeepSeek-Coder 33B",
+    endpoint: "/api/agents/code", primaryField: "requirements", contextField: "context",
+    desc: "Generates working code from a requirement.",
+    placeholder: "Describe the code you need…",
+    examples: ["A function that checks if a number is prime", "A script to rename files in a folder", "A REST endpoint that validates an email"],
   },
   {
-    id: "tester", label: "Tester", endpoint: "/api/agents/test",
-    desc: "Writes test cases for a piece of code. (Llama 3 70B)",
-    fields: [
-      { name: "code", label: "Code", type: "textarea", required: true },
-      { name: "description", label: "Description", type: "text" },
-      { name: "framework", label: "Framework", type: "text", placeholder: "pytest" },
-    ],
+    id: "tester", icon: "🧪", label: "Tester", model: "Llama 3 70B",
+    endpoint: "/api/agents/test", primaryField: "code", contextField: "description",
+    desc: "Writes test cases for a piece of code.",
+    placeholder: "Paste code to write tests for…",
+    examples: ["Write tests for a login function", "Test edge cases for a date parser"],
   },
   {
-    id: "deployer", label: "Deployer", endpoint: "/api/agents/deploy",
-    desc: "Drafts a deployment checklist. Does not run a real deployment. (Mistral 7B)",
-    fields: [
-      { name: "change_summary", label: "What's being deployed", type: "textarea", required: true },
-      { name: "target", label: "Target", type: "text", placeholder: "Vercel" },
-    ],
+    id: "deployer", icon: "🚀", label: "Deployer", model: "Mistral 7B",
+    endpoint: "/api/agents/deploy", primaryField: "change_summary", contextField: "context",
+    desc: "Drafts a deployment checklist (doesn't run it).",
+    placeholder: "Describe what you're deploying…",
+    examples: ["Add a login page to production", "Roll out a new database migration"],
   },
   {
-    id: "document", label: "Document", endpoint: "/api/agents/document",
-    desc: "Writes documentation, docstrings, or explanations. (Llama 3 70B)",
-    fields: [
-      { name: "subject", label: "Subject", type: "text", required: true },
-      { name: "content", label: "Source material / context", type: "textarea" },
-      { name: "doc_type", label: "Doc type", type: "text", placeholder: "README section" },
-    ],
+    id: "document", icon: "📄", label: "Document", model: "Llama 3 70B",
+    endpoint: "/api/agents/document", primaryField: "subject", contextField: "content",
+    desc: "Writes docs, docstrings, and guides.",
+    placeholder: "What should Jarvis document?",
+    examples: ["Document the is_prime function", "Write a README intro for a CLI tool"],
   },
   {
-    id: "qa", label: "QA", endpoint: "/api/agents/qa",
-    desc: "Reviews code for bugs, style, and security issues. (DeepSeek-Coder 33B)",
-    fields: [
-      { name: "code", label: "Code", type: "textarea", required: true },
-      { name: "context", label: "Context", type: "text" },
-    ],
+    id: "qa", icon: "🔍", label: "QA", model: "DeepSeek-Coder 33B",
+    endpoint: "/api/agents/qa", primaryField: "code", contextField: "context",
+    desc: "Reviews code for bugs, style, and security issues.",
+    placeholder: "Paste code to review…",
+    examples: ["Review this function for bugs", "Check this code for security issues"],
   },
 ];
 
-const history = [];
-let activeAgent = AGENTS[0];
+const STORAGE_KEY = "jarvisChats";
+const CURRENT_KEY = "jarvisCurrentChatId";
 
-function renderTabs() {
-  const tabs = document.getElementById("tabs");
-  tabs.innerHTML = "";
-  AGENTS.forEach((agent) => {
-    const btn = document.createElement("button");
-    btn.className = "tab" + (agent.id === activeAgent.id ? " active" : "");
-    btn.textContent = agent.label;
-    btn.onclick = () => {
-      activeAgent = agent;
-      renderTabs();
-      renderForm();
-      hideResult();
-    };
-    tabs.appendChild(btn);
-  });
+let chats = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let currentChatId = localStorage.getItem(CURRENT_KEY);
+let selectedAgentId = AGENTS[0].id;
+let sending = false;
+let codeBlockStore = {};
+let codeBlockCounter = 0;
+
+function agentById(id) {
+  return AGENTS.find((a) => a.id === id) || AGENTS[0];
+}
+function getCurrentChat() {
+  return chats.find((c) => c.id === currentChatId) || null;
+}
+function saveChats() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
+  localStorage.setItem(CURRENT_KEY, currentChatId || "");
+}
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function renderForm() {
-  document.getElementById("agent-title").textContent = activeAgent.label + " Agent";
-  document.getElementById("agent-desc").textContent = activeAgent.desc;
-
-  const form = document.getElementById("agent-form");
-  form.innerHTML = "";
-
-  activeAgent.fields.forEach((field) => {
-    const label = document.createElement("label");
-    label.innerHTML = field.label + (field.required ? ' <span class="req">*</span>' : "");
-    form.appendChild(label);
-
-    let input;
-    if (field.type === "textarea") {
-      input = document.createElement("textarea");
-    } else if (field.type === "select") {
-      input = document.createElement("select");
-      field.options.forEach((opt) => {
-        const o = document.createElement("option");
-        o.value = opt;
-        o.textContent = opt;
-        input.appendChild(o);
-      });
-    } else {
-      input = document.createElement("input");
-      input.type = "text";
-    }
-    input.name = field.name;
-    if (field.placeholder) input.placeholder = field.placeholder;
-    form.appendChild(input);
+function renderMarkdown(text) {
+  const blocks = [];
+  let working = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+    const id = codeBlockCounter++;
+    codeBlockStore[id] = code;
+    blocks.push({ id, lang: lang || "text" });
+    return " CB" + (blocks.length - 1) + " ";
   });
 
-  const submit = document.createElement("button");
-  submit.type = "submit";
-  submit.className = "submit";
-  submit.textContent = "Run " + activeAgent.label;
-  form.appendChild(submit);
+  working = escapeHtml(working);
+  working = working.replace(/`([^`]+)`/g, (m, c) => "<code>" + c + "</code>");
+  working = working.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  working = working.replace(/^### (.*)$/gm, "<h4>$1</h4>");
+  working = working.replace(/^## (.*)$/gm, "<h3>$1</h3>");
+  working = working.replace(/^# (.*)$/gm, "<h2>$1</h2>");
 
-  form.onsubmit = handleSubmit;
-}
-
-function hideResult() {
-  document.getElementById("result").classList.remove("show");
-}
-
-async function handleSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const submitBtn = form.querySelector("button.submit");
-  const data = {};
-  activeAgent.fields.forEach((field) => {
-    const val = form.elements[field.name].value.trim();
-    if (val) data[field.name] = val;
+  working = working.replace(/(^|\n)((?:[-*] .*(?:\n|$))+)/g, (m, pre, block) => {
+    const items = block.trim().split("\n").map((l) => "<li>" + l.replace(/^[-*] /, "") + "</li>").join("");
+    return pre + "<ul>" + items + "</ul>";
+  });
+  working = working.replace(/(^|\n)((?:\d+\. .*(?:\n|$))+)/g, (m, pre, block) => {
+    const items = block.trim().split("\n").map((l) => "<li>" + l.replace(/^\d+\. /, "") + "</li>").join("");
+    return pre + "<ol>" + items + "</ol>";
   });
 
-  if (activeAgent.fields.some((f) => f.required && !data[f.name])) {
-    alert("Please fill in all required fields.");
-    return;
+  working = working
+    .split(/\n{2,}/)
+    .map((block) => {
+      const t = block.trim();
+      if (/^<(h2|h3|h4|ul|ol)/.test(t) || /^ CB\d+ $/.test(t)) return block;
+      if (!t) return "";
+      return "<p>" + block.replace(/\n/g, "<br>") + "</p>";
+    })
+    .join("");
+
+  working = working.replace(/ CB(\d+) /g, (m, i) => {
+    const b = blocks[parseInt(i, 10)];
+    const code = codeBlockStore[b.id];
+    return (
+      '<div class="code-block"><div class="code-header"><span>' +
+      escapeHtml(b.lang) +
+      '</span><button class="copy-btn" data-code-id="' +
+      b.id +
+      '">Copy</button></div><pre><code>' +
+      escapeHtml(code) +
+      "</code></pre></div>"
+    );
+  });
+
+  return working;
+}
+
+function renderMessage(m) {
+  if (m.role === "user") {
+    return '<div class="msg user"><div class="bubble">' + escapeHtml(m.content).replace(/\n/g, "<br>") + "</div></div>";
   }
+  const html = renderMarkdown(m.content || "");
+  const meta = m.elapsed ? '<div class="msg-meta">' + m.elapsed.toFixed(1) + "s</div>" : "";
+  return (
+    '<div class="msg assistant' +
+    (m.error ? " error" : "") +
+    '"><div class="avatar">J</div><div class="content">' +
+    html +
+    meta +
+    "</div></div>"
+  );
+}
 
-  submitBtn.disabled = true;
-  hideResult();
-  const thinking = document.getElementById("thinking");
-  const thinkingText = document.getElementById("thinking-text");
-  thinking.classList.add("show");
+function renderThread() {
+  const chat = getCurrentChat();
+  const thread = document.getElementById("thread");
+  const empty = document.getElementById("empty-state");
 
-  const start = Date.now();
-  const timer = setInterval(() => {
-    const secs = Math.round((Date.now() - start) / 1000);
-    let note = "";
-    if (secs > 15) note = " — some models take 60-90s on their first call after a while idle";
-    thinkingText.textContent = "Thinking… " + secs + "s" + note;
-  }, 1000);
-
-  try {
-    const res = await fetch(activeAgent.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+  if (!chat || chat.messages.length === 0) {
+    thread.innerHTML = "";
+    empty.classList.add("show");
+    const agent = agentById(chat ? chat.agentId : selectedAgentId);
+    document.getElementById("empty-tagline").textContent = agent.desc;
+    const chips = document.getElementById("example-chips");
+    chips.innerHTML = "";
+    agent.examples.forEach((ex) => {
+      const btn = document.createElement("button");
+      btn.className = "example-chip";
+      btn.textContent = ex;
+      btn.onclick = () => {
+        document.getElementById("composer-input").value = ex;
+        onComposerInput();
+        submitComposer();
+      };
+      chips.appendChild(btn);
     });
-    const body = await res.json();
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-
-    const resultEl = document.getElementById("result");
-    resultEl.classList.toggle("error", !res.ok);
-    resultEl.classList.add("show");
-
-    if (res.ok) {
-      document.getElementById("result-task-id").textContent = "task: " + body.task_id;
-      document.getElementById("result-output").textContent = body.output;
-      history.unshift({ agent: activeAgent.label, snippet: body.output, full: body.output, taskId: body.task_id });
-    } else {
-      document.getElementById("result-task-id").textContent = body.error || "Error";
-      document.getElementById("result-output").textContent = body.message || "Something went wrong.";
-    }
-    document.getElementById("result-time").textContent = elapsed + "s";
-    renderHistory();
-  } catch (err) {
-    const resultEl = document.getElementById("result");
-    resultEl.classList.add("show", "error");
-    document.getElementById("result-task-id").textContent = "Network error";
-    document.getElementById("result-output").textContent = String(err);
-  } finally {
-    clearInterval(timer);
-    thinking.classList.remove("show");
-    submitBtn.disabled = false;
-  }
-}
-
-function renderHistory() {
-  const list = document.getElementById("history-list");
-  if (history.length === 0) {
-    list.innerHTML = '<div class="empty-hint">Nothing yet — try an agent above.</div>';
     return;
   }
+
+  empty.classList.remove("show");
+  thread.innerHTML = chat.messages.map(renderMessage).join("");
+  document.querySelector(".thread-wrap").scrollTop = document.querySelector(".thread-wrap").scrollHeight;
+}
+
+function renderSidebar() {
+  const list = document.getElementById("chat-list");
   list.innerHTML = "";
-  history.slice(0, 10).forEach((item) => {
+  const sorted = chats.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  sorted.forEach((chat) => {
+    const agent = agentById(chat.agentId);
     const div = document.createElement("div");
-    div.className = "history-item";
+    div.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
     div.innerHTML =
-      '<div class="agent-badge">' + item.agent + '</div><div class="snippet">' +
-      item.snippet.replace(/</g, "&lt;").slice(0, 90) + "</div>";
-    div.onclick = () => {
-      document.getElementById("result").classList.add("show");
-      document.getElementById("result-task-id").textContent = "task: " + item.taskId;
-      document.getElementById("result-output").textContent = item.full;
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    };
+      '<span class="chat-icon">' +
+      agent.icon +
+      '</span><span class="chat-title">' +
+      escapeHtml(chat.title || "New chat") +
+      '</span><button class="chat-delete">×</button>';
+    div.addEventListener("click", (e) => {
+      if (e.target.classList.contains("chat-delete")) return;
+      switchChat(chat.id);
+    });
+    div.querySelector(".chat-delete").addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteChat(chat.id);
+    });
     list.appendChild(div);
   });
+}
+
+function renderAgentPicker() {
+  const agent = agentById(selectedAgentId);
+  document.getElementById("agent-picker-btn").innerHTML =
+    agent.icon + " " + agent.label + ' <span class="chevron">▾</span>';
+
+  const menu = document.getElementById("agent-menu");
+  menu.innerHTML = "";
+  AGENTS.forEach((a) => {
+    const div = document.createElement("div");
+    div.className = "agent-option" + (a.id === selectedAgentId ? " active" : "");
+    div.innerHTML =
+      '<span class="icon">' +
+      a.icon +
+      '</span><div><div class="name">' +
+      a.label +
+      '</div><div class="desc">' +
+      a.desc +
+      '</div><div class="model">' +
+      a.model +
+      "</div></div>";
+    div.onclick = () => {
+      selectedAgentId = a.id;
+      const chat = getCurrentChat();
+      if (chat) chat.agentId = a.id;
+      saveChats();
+      renderAgentPicker();
+      renderSidebar();
+      renderThread();
+      document.getElementById("agent-menu").classList.remove("show");
+      document.getElementById("composer-input").placeholder = a.placeholder;
+    };
+    menu.appendChild(div);
+  });
+}
+
+function newChat() {
+  const id = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random();
+  chats.push({ id, agentId: selectedAgentId, title: "", messages: [], createdAt: new Date().toISOString() });
+  currentChatId = id;
+  saveChats();
+  renderSidebar();
+  renderThread();
+  closeSidebarMobile();
+}
+
+function switchChat(id) {
+  currentChatId = id;
+  const chat = getCurrentChat();
+  if (chat) selectedAgentId = chat.agentId;
+  saveChats();
+  renderAgentPicker();
+  renderSidebar();
+  renderThread();
+  closeSidebarMobile();
+}
+
+function deleteChat(id) {
+  chats = chats.filter((c) => c.id !== id);
+  if (currentChatId === id) {
+    currentChatId = chats.length ? chats[0].id : null;
+    const chat = getCurrentChat();
+    if (chat) selectedAgentId = chat.agentId;
+  }
+  saveChats();
+  renderAgentPicker();
+  renderSidebar();
+  renderThread();
+}
+
+function openSidebarMobile() {
+  document.getElementById("sidebar").classList.add("open");
+  document.getElementById("backdrop").classList.add("show");
+}
+function closeSidebarMobile() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("backdrop").classList.remove("show");
+}
+
+let typingTimer = null;
+function showTyping(show, start) {
+  const wrap = document.querySelector(".thread-wrap");
+  const thread = document.getElementById("thread");
+  let el = document.getElementById("typing-indicator");
+  if (show) {
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "typing-indicator";
+      el.className = "msg assistant";
+      el.innerHTML =
+        '<div class="avatar">J</div><div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="typing-note"></span></div>';
+      thread.appendChild(el);
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+    typingTimer = setInterval(() => {
+      const secs = Math.round((Date.now() - start) / 1000);
+      const note = el.querySelector(".typing-note");
+      if (secs > 15) note.textContent = secs + "s — some models take 60-90s on their first call after a while idle";
+      else if (secs > 2) note.textContent = secs + "s";
+    }, 1000);
+  } else {
+    clearInterval(typingTimer);
+    if (el) el.remove();
+  }
+}
+
+async function sendMessage(text) {
+  let chat = getCurrentChat();
+  if (!chat) {
+    newChat();
+    chat = getCurrentChat();
+  }
+  const agent = agentById(chat.agentId);
+
+  const priorContext = chat.messages
+    .map((m) => (m.role === "user" ? "User: " : "Jarvis: ") + m.content)
+    .join("\n\n");
+
+  chat.messages.push({ role: "user", content: text });
+  if (!chat.title) chat.title = text.slice(0, 60);
+  saveChats();
+  renderSidebar();
+  renderThread();
+
+  const payload = {};
+  payload[agent.primaryField] = text;
+  if (priorContext) payload[agent.contextField] = priorContext;
+
+  sending = true;
+  updateSendButton();
+  const start = Date.now();
+  showTyping(true, start);
+
+  try {
+    const res = await fetch(agent.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    const elapsed = (Date.now() - start) / 1000;
+
+    if (res.ok) {
+      chat.messages.push({ role: "assistant", content: body.output, taskId: body.task_id, elapsed });
+    } else {
+      chat.messages.push({ role: "assistant", content: "**Error:** " + (body.message || "Something went wrong."), error: true });
+    }
+  } catch (err) {
+    chat.messages.push({ role: "assistant", content: "**Network error:** " + String(err), error: true });
+  } finally {
+    showTyping(false);
+    sending = false;
+    updateSendButton();
+    saveChats();
+    renderSidebar();
+    renderThread();
+  }
+}
+
+function onComposerInput() {
+  const ta = document.getElementById("composer-input");
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  updateSendButton();
+}
+
+function updateSendButton() {
+  const ta = document.getElementById("composer-input");
+  document.getElementById("composer-send").disabled = sending || !ta.value.trim();
+}
+
+function submitComposer() {
+  const ta = document.getElementById("composer-input");
+  const text = ta.value.trim();
+  if (!text || sending) return;
+  ta.value = "";
+  ta.style.height = "auto";
+  updateSendButton();
+  sendMessage(text);
 }
 
 async function loadStatus() {
@@ -487,13 +838,57 @@ async function loadStatus() {
       if (dot) dot.className = "dot " + (state === "healthy" ? "ok" : "bad");
     });
   } catch (err) {
-    // status is best-effort UI polish; a failed check just leaves dots grey
+    // best-effort UI polish only
   }
 }
 
-renderTabs();
-renderForm();
+// ---- wiring ----
+document.getElementById("new-chat-btn").addEventListener("click", newChat);
+document.getElementById("hamburger").addEventListener("click", openSidebarMobile);
+document.getElementById("backdrop").addEventListener("click", closeSidebarMobile);
+document.getElementById("agent-picker-btn").addEventListener("click", () => {
+  document.getElementById("agent-menu").classList.toggle("show");
+});
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("agent-menu");
+  const btn = document.getElementById("agent-picker-btn");
+  if (menu.classList.contains("show") && !menu.contains(e.target) && !btn.contains(e.target)) {
+    menu.classList.remove("show");
+  }
+});
+document.getElementById("composer-input").addEventListener("input", onComposerInput);
+document.getElementById("composer-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitComposer();
+  }
+});
+document.getElementById("composer-send").addEventListener("click", submitComposer);
+document.getElementById("thread").addEventListener("click", (e) => {
+  const btn = e.target.closest(".copy-btn");
+  if (!btn) return;
+  const id = btn.getAttribute("data-code-id");
+  const code = codeBlockStore[id];
+  if (code == null) return;
+  navigator.clipboard.writeText(code).then(() => {
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => (btn.textContent = original), 1500);
+  });
+});
+
+// ---- init ----
+if (!getCurrentChat() && chats.length) {
+  currentChatId = chats[0].id;
+}
+const initialChat = getCurrentChat();
+if (initialChat) selectedAgentId = initialChat.agentId;
+
+renderAgentPicker();
+renderSidebar();
+renderThread();
 loadStatus();
+document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
 </script>
 
 </body>
