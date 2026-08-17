@@ -605,6 +605,55 @@ def test_post_agent_config_rejects_invalid_entry(client):
     assert response.status_code == 400
 
 
+# ---- Presets ----
+
+
+def test_list_presets_returns_frugal_and_max_quality(client):
+    response = client.get("/api/settings/presets")
+    assert response.status_code == 200
+    ids = {p["id"] for p in json.loads(response.data)["presets"]}
+    assert ids == {"frugal", "max_quality"}
+
+
+def test_apply_unknown_preset_returns_404(client):
+    response = client.post("/api/settings/presets/not-a-real-preset/apply")
+    assert response.status_code == 404
+
+
+def test_apply_frugal_preset_sets_cheaper_model_and_lower_max_tokens(client):
+    response = client.post("/api/settings/presets/frugal/apply")
+    assert response.status_code == 200
+    config = json.loads(response.data)["config"]
+    assert config["coder"]["model"] == "cheaper"
+    assert config["coder"]["max_tokens"] == 512
+
+    # And it actually persisted — GET reflects the same matrix.
+    saved = json.loads(client.get("/api/settings/agent-config").data)["config"]
+    assert saved["coder"]["model"] == "cheaper"
+
+
+def test_apply_max_quality_preset_clears_overrides(client):
+    client.post("/api/settings/presets/frugal/apply")
+    response = client.post("/api/settings/presets/max_quality/apply")
+    assert response.status_code == 200
+    config = json.loads(response.data)["config"]
+    assert "model" not in config["coder"]
+    assert "max_tokens" not in config["coder"]
+
+
+def test_apply_preset_preserves_existing_enabled_and_temperature(client):
+    client.post(
+        "/api/settings/agent-config",
+        data=json.dumps({"coder": {"enabled": False, "temperature": 0.9}}),
+        content_type="application/json",
+    )
+    response = client.post("/api/settings/presets/frugal/apply")
+    config = json.loads(response.data)["config"]
+    assert config["coder"]["enabled"] is False
+    assert config["coder"]["temperature"] == 0.9
+    assert config["coder"]["model"] == "cheaper"
+
+
 def test_disabled_agent_rejects_requests(client):
     client.post(
         "/api/settings/agent-config",

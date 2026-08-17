@@ -2195,9 +2195,18 @@ async function renderAgentDefaultsCategory(content) {
   content.innerHTML = `
     <h3>Agent Defaults</h3>
     ${defaultAgentField ? renderGenericField(defaultAgentField) : ""}
+    <div class="settings-field">
+      <div class="settings-field-label"><span>Presets</span>
+        <button class="info-btn" id="presets-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-presets">Loading…</div>
+      <div class="settings-row" style="gap:8px;flex-wrap:wrap;justify-content:flex-start;" id="preset-buttons"></div>
+    </div>
     <div id="agent-defaults-inner"><div class="settings-hint">Loading…</div></div>
   `;
   if (defaultAgentField) wireGenericField(content, defaultAgentField);
+  content.querySelector("#presets-info-btn").addEventListener("click", () => toggleInfoNote("presets"));
+  loadPresets(content);
 
   try {
     const res = await fetch("/api/settings/agent-config");
@@ -2283,6 +2292,49 @@ async function saveAgentConfigMatrix() {
     showToast("Agent defaults saved.");
   } catch (err) {
     showToast("Network error — couldn't save.");
+  }
+}
+
+async function loadPresets(content) {
+  const note = document.getElementById("note-presets");
+  const buttonsEl = document.getElementById("preset-buttons");
+  if (!note || !buttonsEl) return;
+  try {
+    const res = await fetch("/api/settings/presets");
+    const body = await res.json();
+    note.innerHTML = body.presets
+      .map((p) => `<strong>${escapeHtml(p.label)}</strong> — ${escapeHtml(p.note)}`)
+      .join("<br><br>");
+    buttonsEl.innerHTML = body.presets
+      .map((p) => `<button class="settings-btn" data-preset="${p.id}">${escapeHtml(p.label)}</button>`)
+      .join("");
+    buttonsEl.querySelectorAll("[data-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => applyPreset(btn.getAttribute("data-preset"), content, btn));
+    });
+  } catch (err) {
+    note.textContent = "Couldn't load presets.";
+  }
+}
+
+async function applyPreset(presetId, content, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch(`/api/settings/presets/${presetId}/apply`, { method: "POST" });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.message || "Couldn't apply preset.");
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+    showToast("Preset applied.");
+    renderAgentDefaultsCategory(content);
+  } catch (err) {
+    showToast("Network error — couldn't apply preset.");
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 

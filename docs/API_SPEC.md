@@ -345,6 +345,23 @@ key to leave that agent using its built-in default.
 **Response `200`**: `{"config": {...}}` (the cleaned, saved matrix)
 **Response `400`**: unknown agent id, wrong type, or an out-of-range value.
 
+### `GET /api/settings/presets`
+
+The built-in Agent Defaults presets (fixed for now, defined in `settings_schema.py`).
+```json
+{"presets": [{"id": "frugal", "label": "Frugal", "note": "..."}, {"id": "max_quality", "label": "Max Quality", "note": "..."}]}
+```
+
+### `POST /api/settings/presets/<preset_id>/apply`
+
+Applies a preset's `model`/`max_tokens` delta across every agent in one call, **merged** onto
+the existing matrix — a saved `enabled` or `temperature` override survives, since presets only
+ever touch the two controls that affect spend. Same response shape as
+`POST /api/settings/agent-config`.
+
+**Response `200`**: `{"config": {...}}` (the full matrix after applying)
+**Response `404`**: unknown `preset_id`.
+
 ### `GET /api/tasks`
 
 Recent tasks for Data Controls' task browser. `?agent_type=` filters;

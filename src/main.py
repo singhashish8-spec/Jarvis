@@ -35,7 +35,9 @@ from src.settings_schema import (  # noqa: E402
     AGENT_TYPES,
     CATEGORIES,
     CHEAPER_MODEL,
+    PRESETS,
     SETTINGS_SCHEMA,
+    compute_preset_agent_config,
     validate_agent_config,
     validate_setting_value,
 )
@@ -585,23 +587,28 @@ def reset_settings():
     return jsonify({"reset": True}), 200
 
 
+def _load_agent_config() -> Dict[str, Any]:
+    """The saved per-agent overrides matrix, degrading to `{}` on
+    anything missing or malformed rather than raising."""
+    raw = db_client.get_setting("agent_config")
+    try:
+        return json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+
+
 @app.route("/api/settings/agent-config", methods=["GET"])
 def get_agent_config_endpoint():
     """The full per-agent overrides matrix (enabled/model/temperature/
     max_tokens), each agent's built-in defaults, and the one available
     model override — everything the Agent Defaults settings page needs."""
-    raw = db_client.get_setting("agent_config")
-    try:
-        current = json.loads(raw) if raw else {}
-    except (TypeError, ValueError):
-        current = {}
     return (
         jsonify(
             {
                 "agents": AGENT_TYPES,
                 "defaults": AGENT_BUILTIN_DEFAULTS,
                 "cheaper_model": CHEAPER_MODEL,
-                "config": current,
+                "config": _load_agent_config(),
             }
         ),
         200,
@@ -623,6 +630,58 @@ def update_agent_config():
         db_client.set_setting("agent_config", json.dumps(cleaned))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to save agent config: %s", exc)
+        raise APIError(
+            "Couldn't save — the database's `settings` table may not exist "
+            "yet. See docs/DATABASE.md.",
+            500,
+        )
+
+    return jsonify({"config": cleaned}), 200
+
+
+@app.route("/api/settings/presets", methods=["GET"])
+def list_presets():
+    """The available Agent Defaults presets — label + (i)-tooltip note
+    for each, same shape as SETTINGS_SCHEMA's generic fields so the
+    dashboard can render them the same way."""
+    return jsonify({"presets": PRESETS}), 200
+
+
+@app.route("/api/settings/presets/<preset_id>/apply", methods=["POST"])
+def apply_preset(preset_id):
+    """Applies a preset's model/max_tokens delta across every agent in
+    one call. Merges onto the existing matrix rather than replacing it
+    outright — a saved `enabled` or `temperature` override survives
+    applying a preset, since presets only ever touch the two controls
+    that actually affect spend (see settings_schema.py)."""
+    try:
+        delta = compute_preset_agent_config(preset_id)
+    except ValueError as exc:
+        raise APIError(str(exc), 404)
+
+    current = _load_agent_config()
+    merged: Dict[str, Any] = {}
+    for agent_id, overrides in delta.items():
+        existing = current.get(agent_id)
+        entry: Dict[str, Any] = {}
+        if isinstance(existing, dict):
+            if "enabled" in existing:
+                entry["enabled"] = existing["enabled"]
+            if "temperature" in existing:
+                entry["temperature"] = existing["temperature"]
+        entry["model"] = overrides["model"]
+        entry["max_tokens"] = overrides["max_tokens"]
+        merged[agent_id] = entry
+
+    try:
+        cleaned = validate_agent_config(merged)
+    except ValueError as exc:
+        raise APIError(str(exc), 400)
+
+    try:
+        db_client.set_setting("agent_config", json.dumps(cleaned))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to apply preset %s: %s", preset_id, exc)
         raise APIError(
             "Couldn't save — the database's `settings` table may not exist "
             "yet. See docs/DATABASE.md.",
