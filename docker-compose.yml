@@ -1,0 +1,13 @@
+# Optional local dev environment — Jarvis itself uses hosted Supabase/R2,
+# so this is just a convenience for running the API in a container instead
+# of a venv. Not required for `make dev`.
+services:
+  jarvis-api:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+    command: python -m src.main
