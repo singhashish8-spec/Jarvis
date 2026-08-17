@@ -115,6 +115,150 @@ def test_storage_endpoint_returns_r2_and_supabase_stats(client, monkeypatch):
     assert data["supabase_tables"] == {"tasks": 12, "usage": 3, "skills": 2}
 
 
+# ---- Dropbox connector ----
+
+
+def test_dropbox_status_not_configured_by_default(client):
+    response = client.get("/api/connectors/dropbox/status")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data == {"configured": False, "connected": False, "account_email": None}
+
+
+def test_dropbox_status_connected(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    monkeypatch.setattr(dropbox_client, "is_configured", lambda: True)
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    db_client.set_setting("dropbox_account_email", "user@example.com")
+
+    response = client.get("/api/connectors/dropbox/status")
+    data = json.loads(response.data)
+    assert data == {
+        "configured": True,
+        "connected": True,
+        "account_email": "user@example.com",
+    }
+
+
+def test_dropbox_authorize_rejects_when_not_configured(client):
+    response = client.get("/api/connectors/dropbox/authorize")
+    assert response.status_code == 400
+
+
+def test_dropbox_authorize_redirects_when_configured(client, monkeypatch):
+    from src.main import dropbox_client
+
+    monkeypatch.setattr(dropbox_client, "is_configured", lambda: True)
+    response = client.get("/api/connectors/dropbox/authorize")
+    assert response.status_code == 302
+    assert "dropbox.com/oauth2/authorize" in response.headers["Location"]
+
+
+def test_dropbox_callback_saves_tokens_and_redirects(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    monkeypatch.setattr(
+        dropbox_client,
+        "exchange_code",
+        lambda code, redirect_uri: {"access_token": "at", "refresh_token": "rt"},
+    )
+    monkeypatch.setattr(
+        dropbox_client, "get_account_email", lambda access_token: "user@example.com"
+    )
+
+    response = client.get("/api/connectors/dropbox/callback?code=abc123")
+    assert response.status_code == 302
+    assert "status=connected" in response.headers["Location"]
+    assert db_client.get_setting("dropbox_refresh_token") == "rt"
+    assert db_client.get_setting("dropbox_account_email") == "user@example.com"
+
+
+def test_dropbox_callback_handles_denied_access(client):
+    response = client.get("/api/connectors/dropbox/callback?error=access_denied")
+    assert response.status_code == 302
+    assert "status=error" in response.headers["Location"]
+
+
+def test_dropbox_callback_handles_exchange_failure(client, monkeypatch):
+    from src.main import dropbox_client
+
+    def _boom(code, redirect_uri):
+        raise RuntimeError("network error")
+
+    monkeypatch.setattr(dropbox_client, "exchange_code", _boom)
+    response = client.get("/api/connectors/dropbox/callback?code=abc123")
+    assert response.status_code == 302
+    assert "status=error" in response.headers["Location"]
+
+
+def test_dropbox_disconnect_clears_stored_tokens(client):
+    from src.main import db_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    db_client.set_setting("dropbox_account_email", "user@example.com")
+
+    response = client.post("/api/connectors/dropbox/disconnect")
+    assert response.status_code == 200
+    assert db_client.get_setting("dropbox_refresh_token") == ""
+
+    status = json.loads(client.get("/api/connectors/dropbox/status").data)
+    assert status["connected"] is False
+
+
+def test_dropbox_files_requires_connection(client):
+    response = client.get("/api/connectors/dropbox/files")
+    assert response.status_code == 400
+
+
+def test_dropbox_files_lists_entries_when_connected(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    monkeypatch.setattr(
+        dropbox_client, "refresh_access_token", lambda refresh_token: "fresh-at"
+    )
+    monkeypatch.setattr(
+        dropbox_client,
+        "list_folder",
+        lambda access_token, path="": [
+            {"name": "notes.txt", "path": "/notes.txt", "is_folder": False, "size": 42}
+        ],
+    )
+
+    response = client.get("/api/connectors/dropbox/files")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["entries"][0]["name"] == "notes.txt"
+
+
+def test_dropbox_pull_requires_path(client):
+    from src.main import db_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    response = client.post("/api/connectors/dropbox/pull", json={})
+    assert response.status_code == 400
+
+
+def test_dropbox_pull_returns_file_content(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    monkeypatch.setattr(
+        dropbox_client, "refresh_access_token", lambda refresh_token: "fresh-at"
+    )
+    monkeypatch.setattr(
+        dropbox_client,
+        "download_file_text",
+        lambda access_token, path: "file contents here",
+    )
+
+    response = client.post("/api/connectors/dropbox/pull", json={"path": "/notes.txt"})
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["content"] == "file contents here"
+
+
 def test_set_credit_limit_saves_and_usage_reflects_it(client):
     response = client.post(
         "/api/settings/credit-limit",

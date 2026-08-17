@@ -127,20 +127,48 @@ before this feature. See [DATABASE.md](DATABASE.md) for the upgrade SQL — with
 
 ## Connectors / MCP
 
-Placeholders only — nothing here is wired up yet. Google Drive, Slack, and GitHub would each
-be a cloud-to-cloud OAuth connector (Jarvis's server talking directly to that service's API, no
-local software needed). **PyRevit / Local PC & Home Server is different in kind, not just
-unbuilt**: Jarvis runs on Vercel, which has no way to reach your PC directly, and PyRevit is
-local desktop software with no cloud API of its own. Making that one real needs either a small
-bridge/onboard app running on your machine that Jarvis's cloud side can talk to, or running
-Jarvis itself locally on your laptop/home server once you've procured your own hardware (see
-[ROADMAP.md](../ROADMAP.md), Phase 3 — hardware). It's marked "Needs local bridge app" in the
-UI rather than "Coming soon" for exactly this reason, and is worth its own design discussion
-once that migration is closer.
+### Dropbox — the one real connector
 
-None of the four connectors can consume tokens on their own — pulling in outside data is free;
-only what actually gets stuffed into a prompt afterward counts as input tokens, the same as
-pasting it in by hand.
+Connect once, browse your Dropbox, and pull a file's text content in instead of copying it by
+hand. Real OAuth 2.0, not a placeholder:
+
+- **Setup** (one-time, outside the dashboard): create an app at
+  [dropbox.com/developers/apps](https://www.dropbox.com/developers/apps) — scoped access,
+  access type **App folder** (Jarvis only ever sees a dedicated folder, not your whole
+  Dropbox), permissions `files.metadata.read` + `files.content.read`. Register a redirect URI
+  for every place Jarvis runs (`.../api/connectors/dropbox/callback`), then set
+  `DROPBOX_APP_KEY` / `DROPBOX_APP_SECRET` as environment variables — see `.env.example` for
+  the exact steps. Until both are set, the card shows "Needs setup" instead of a broken button.
+- **Connect** (`GET /api/connectors/dropbox/authorize`) redirects into Dropbox's own consent
+  screen; approving sends you back to `.../callback`, which exchanges the one-time code for a
+  refresh token and redirects to `/?connector=dropbox&status=connected`. That refresh token is
+  the only thing persisted — in the `settings` table, under a key deliberately left out of
+  `SETTINGS_SCHEMA` so it can never surface through `GET /api/settings`.
+- **Browse** (`GET /api/connectors/dropbox/files?path=...`) lists one folder at a time — no
+  local caching, no recursive crawl.
+- **Copy** (`POST /api/connectors/dropbox/pull`) downloads one file (capped at ~200KB / ~50k
+  tokens of text) and copies it to your clipboard — paste it into your message same as any
+  pasted text. Nothing gets fed into a prompt automatically.
+- **Disconnect** (`POST /api/connectors/dropbox/disconnect`) clears the stored refresh token.
+
+Every real API call first exchanges the stored refresh token for a fresh access token rather
+than caching one — Vercel's serverless functions don't reliably keep process memory between
+requests, the same reasoning behind the rate limiter's DB-backed count.
+
+### The rest — still placeholders
+
+Google Drive, Slack, and GitHub would each be a cloud-to-cloud OAuth connector, same shape as
+Dropbox above — nothing wired up yet. **PyRevit / Local PC & Home Server is different in kind,
+not just unbuilt**: Jarvis runs on Vercel, which has no way to reach your PC directly, and
+PyRevit is local desktop software with no cloud API of its own. Making that one real needs
+either a small bridge/onboard app running on your machine that Jarvis's cloud side can talk to,
+or running Jarvis itself locally on your laptop/home server once you've procured your own
+hardware (see [ROADMAP.md](../ROADMAP.md), Phase 3 — hardware). It's marked "Needs local bridge
+app" in the UI rather than "Coming soon" for exactly this reason.
+
+None of the connectors can consume tokens on their own — pulling in outside data is free; only
+what actually gets stuffed into a prompt afterward counts as input tokens, the same as pasting
+it in by hand.
 
 ## Custom Instructions
 
@@ -189,5 +217,8 @@ Both are destructive and irreversible; the dashboard confirms before calling eit
   request actually uses (`resolve_agent_settings`), called once per request from `main.py`.
 - [`src/database/client.py`](../src/database/client.py) — generic `get_setting`/`set_setting`
   plus the Skills/task-browser/danger-zone specific methods.
+- [`src/connectors/dropbox_client.py`](../src/connectors/dropbox_client.py) — the OAuth
+  handshake and Files API calls behind the Dropbox connector; routes live in `main.py` under
+  `/api/connectors/dropbox/*`.
 - [`src/static/dashboard.html`](../src/static/dashboard.html) — the Settings panel itself (CSS
   under `/* ---------- Settings (Command Deck) ---------- */`, JS under `SETTINGS`).

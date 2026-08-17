@@ -2655,10 +2655,10 @@ function renderConnectorsCategory(content) {
   content.innerHTML = `
     <h3>Connectors / MCP</h3>
     <div class="settings-hint" style="margin-bottom:14px;">
-      Nothing here is wired up yet — these are placeholders for what's next. None of them can
-      consume tokens on their own: pulling in outside data is free, only what actually gets
-      stuffed into a prompt afterward counts as input.
+      None of these can consume tokens on their own: pulling in outside data is free, only what
+      actually gets stuffed into a prompt afterward counts as input.
     </div>
+    <div id="dropbox-connector-card"><div class="settings-hint">Loading…</div></div>
     ${CONNECTORS.map((c, i) => `
       <div class="connector-card">
         <span class="icon">${c.icon}</span>
@@ -2678,6 +2678,152 @@ function renderConnectorsCategory(content) {
       if (note) note.classList.toggle("show");
     });
   });
+  loadDropboxConnectorCard();
+}
+
+// ---- Dropbox connector (the one real one; the rest above stay placeholders) ----
+
+async function loadDropboxConnectorCard() {
+  const el = document.getElementById("dropbox-connector-card");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/connectors/dropbox/status");
+    const body = await res.json();
+
+    if (!body.configured) {
+      el.innerHTML = `
+        <div class="connector-card">
+          <span class="icon">📦</span>
+          <div>
+            <div class="name">Dropbox</div>
+            <div class="desc">Pull a file in as context instead of pasting it.</div>
+          </div>
+          <span class="connector-badge">Needs setup</span>
+        </div>
+        <div class="settings-hint" style="margin:-4px 0 14px;">
+          Not configured yet — needs <code>DROPBOX_APP_KEY</code> / <code>DROPBOX_APP_SECRET</code>
+          set as environment variables. See docs/SETTINGS.md for the exact setup steps.
+        </div>
+      `;
+      return;
+    }
+
+    if (!body.connected) {
+      el.innerHTML = `
+        <div class="connector-card">
+          <span class="icon">📦</span>
+          <div>
+            <div class="name">Dropbox</div>
+            <div class="desc">Pull a file in as context instead of pasting it.</div>
+          </div>
+          <button class="settings-btn primary" id="dropbox-connect-btn">Connect</button>
+        </div>
+      `;
+      el.querySelector("#dropbox-connect-btn").addEventListener("click", () => {
+        window.location.href = "/api/connectors/dropbox/authorize";
+      });
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="connector-card" style="align-items:flex-start;">
+        <span class="icon">📦</span>
+        <div style="flex:1;">
+          <div class="name">Dropbox</div>
+          <div class="desc">Connected as ${escapeHtml(body.account_email || "")}</div>
+        </div>
+        <button class="settings-btn" id="dropbox-disconnect-btn">Disconnect</button>
+      </div>
+      <div class="settings-field" style="margin-top:-6px;">
+        <div class="settings-field-label"><span>Browse</span></div>
+        <div id="dropbox-browser"></div>
+      </div>
+    `;
+    el.querySelector("#dropbox-disconnect-btn").addEventListener("click", disconnectDropbox);
+    loadDropboxFolder("");
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t reach the Dropbox connector.</div>';
+  }
+}
+
+async function disconnectDropbox() {
+  try {
+    await fetch("/api/connectors/dropbox/disconnect", { method: "POST" });
+    showToast("Disconnected from Dropbox.");
+    loadDropboxConnectorCard();
+  } catch (err) {
+    showToast("Network error — couldn't disconnect.");
+  }
+}
+
+async function loadDropboxFolder(path) {
+  const el = document.getElementById("dropbox-browser");
+  if (!el) return;
+  el.innerHTML = '<div class="settings-hint">Loading…</div>';
+  try {
+    const res = await fetch("/api/connectors/dropbox/files?path=" + encodeURIComponent(path));
+    const body = await res.json();
+    if (!res.ok) {
+      el.innerHTML = `<div class="modal-empty">${escapeHtml(body.message || "Couldn't list that folder.")}</div>`;
+      return;
+    }
+    const upRow = path
+      ? `<div class="task-row" data-nav-up="1" style="cursor:pointer;">
+           <span class="task-agent">.. (up one level)</span>
+         </div>`
+      : "";
+    const rows = body.entries.map((e) => {
+      if (e.is_folder) {
+        return `
+          <div class="task-row" data-nav="${escapeHtml(e.path)}" style="cursor:pointer;">
+            <span class="task-agent">📁 ${escapeHtml(e.name)}</span>
+          </div>`;
+      }
+      return `
+        <div class="task-row">
+          <div class="task-meta"><span class="task-summary">📄 ${escapeHtml(e.name)}</span></div>
+          <button class="settings-btn" data-pull="${escapeHtml(e.path)}">Copy</button>
+        </div>`;
+    }).join("");
+    el.innerHTML = upRow + (rows || '<div class="settings-hint">Empty folder.</div>');
+    el.querySelectorAll("[data-nav]").forEach((row) => {
+      row.addEventListener("click", () => loadDropboxFolder(row.getAttribute("data-nav")));
+    });
+    const upEl = el.querySelector("[data-nav-up]");
+    if (upEl) {
+      upEl.addEventListener("click", () => loadDropboxFolder(path.split("/").slice(0, -1).join("/")));
+    }
+    el.querySelectorAll("[data-pull]").forEach((btn) => {
+      btn.addEventListener("click", () => pullDropboxFile(btn.getAttribute("data-pull"), btn));
+    });
+  } catch (err) {
+    el.innerHTML = '<div class="modal-empty">Couldn\'t list that folder.</div>';
+  }
+}
+
+async function pullDropboxFile(path, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch("/api/connectors/dropbox/pull", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.message || "Couldn't pull that file.");
+      return;
+    }
+    await navigator.clipboard.writeText(body.content);
+    showToast("Copied — paste it into your message.");
+  } catch (err) {
+    showToast("Network error — couldn't pull that file.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 }
 
 // ---- Custom Instructions / Rate Limiting / Webhooks (generic) ----
@@ -2955,6 +3101,14 @@ async function applyDefaultAgentSetting() {
   setInterval(loadStatus, 20000);
   setInterval(loadUsage, 20000);
   document.getElementById("composer-input").placeholder = agentById(selectedAgentId).placeholder;
+
+  const connectorResult = new URLSearchParams(window.location.search).get("connector");
+  if (connectorResult === "dropbox") {
+    const status = new URLSearchParams(window.location.search).get("status");
+    window.history.replaceState({}, "", window.location.pathname);
+    showToast(status === "connected" ? "Connected to Dropbox." : "Couldn't connect to Dropbox.");
+    openSettings("connectors");
+  }
 })();
 </script>
 

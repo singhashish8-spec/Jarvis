@@ -120,6 +120,62 @@ counted in that case, not the true total.
 
 ---
 
+## Connectors — Dropbox
+
+The one real connector (Drive/Slack/GitHub are still placeholders, no
+endpoints). Requires `DROPBOX_APP_KEY`/`DROPBOX_APP_SECRET` — see
+`.env.example` for setup. Auth state (a refresh token) lives in the
+`settings` table under keys not part of `SETTINGS_SCHEMA`, so it never
+appears in `GET /api/settings`.
+
+### `GET /api/connectors/dropbox/status`
+
+```json
+{"configured": true, "connected": true, "account_email": "you@example.com"}
+```
+`configured` reflects whether the env vars are set; `connected` whether a
+refresh token is stored; `account_email` is `null` until connected.
+
+### `GET /api/connectors/dropbox/authorize`
+
+`302` redirect into Dropbox's OAuth consent screen. `400` if not
+configured. Not meant to be fetched via `fetch()` — the dashboard
+navigates the whole page here (`window.location.href = ...`).
+
+### `GET /api/connectors/dropbox/callback`
+
+Dropbox redirects here after consent. Exchanges the one-time code for a
+refresh token, stores it, and redirects to `/?connector=dropbox&status=connected`
+(or `status=error` if the code/exchange failed) — the dashboard reads that
+query param on load to show a toast and clears it from the URL.
+
+### `POST /api/connectors/dropbox/disconnect`
+
+Clears the stored refresh token. `{"disconnected": true}`.
+
+### `GET /api/connectors/dropbox/files?path=<path>`
+
+Lists one folder's immediate children (`path=""` is the account root).
+`400` if not connected; `502` if Dropbox itself errors.
+```json
+{"path": "/Projects", "entries": [{"name": "notes.txt", "path": "/Projects/notes.txt", "is_folder": false, "size": 812}]}
+```
+
+### `POST /api/connectors/dropbox/pull`
+
+Body: `{"path": "/Projects/notes.txt"}`. Downloads that file's text
+content, capped at ~200KB (~50k tokens) so one click can't blow up a
+prompt. `400` if `path` is missing or Dropbox isn't connected; `502` on a
+Dropbox-side failure.
+```json
+{"path": "/Projects/notes.txt", "content": "..."}
+```
+Pulling a file costs nothing by itself — it's copied to your clipboard,
+not injected into any prompt. Only pasting it into a message counts as
+input tokens, same as pasting anything else by hand.
+
+---
+
 ## `POST /api/settings/credit-limit`
 
 Saves the budget `GET /api/usage` tracks spend against, persisted in the

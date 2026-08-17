@@ -33,6 +33,7 @@ from src.main import (  # noqa: E402
     db_client,
     deployer_agent,
     document_agent,
+    dropbox_client,
     qa_agent,
     r2_client,
     tester_agent,
@@ -94,6 +95,10 @@ def client(monkeypatch):
         lambda key, value: fake_settings.__setitem__(key, value),
     )
     monkeypatch.setattr(db_client, "reset_all_settings", lambda: fake_settings.clear())
+
+    # Dropbox connector defaults to "not configured" (no app key/secret
+    # set), matching a fresh install. Individual tests override this.
+    monkeypatch.setattr(dropbox_client, "is_configured", lambda: False)
 
     # Fake tasks store, so Data Controls' task browser and rate limiting
     # have something real to read without a live DB.
