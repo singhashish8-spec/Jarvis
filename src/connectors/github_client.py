@@ -128,7 +128,9 @@ class GitHubClient:
             for entry in entries
         ]
 
-    def download_file_text(self, access_token: str, repo: str, path: str) -> Dict[str, Any]:
+    def download_file_text(
+        self, access_token: str, repo: str, path: str
+    ) -> Dict[str, Any]:
         """Downloads a file's raw content (not the base64-wrapped
         contents API), capped at MAX_FILE_BYTES. Returns
         {"content", "truncated"} so callers can tell the user when a

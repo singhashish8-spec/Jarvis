@@ -65,7 +65,9 @@ def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
     assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
 
 
-def test_usage_endpoint_zero_credit_limit_does_not_crash_and_shows_bar(client, monkeypatch):
+def test_usage_endpoint_zero_credit_limit_does_not_crash_and_shows_bar(
+    client, monkeypatch
+):
     from src.config import config
 
     monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 0.0)
@@ -79,7 +81,9 @@ def test_usage_endpoint_zero_credit_limit_does_not_crash_and_shows_bar(client, m
     )
 
 
-def test_usage_endpoint_zero_credit_limit_triggers_alert_on_any_spend(client, monkeypatch):
+def test_usage_endpoint_zero_credit_limit_triggers_alert_on_any_spend(
+    client, monkeypatch
+):
     from src.config import config
     from src.main import db_client
 
@@ -290,7 +294,10 @@ def test_dropbox_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         dropbox_client,
         "download_file_text",
-        lambda access_token, path: {"content": "file contents here", "truncated": False},
+        lambda access_token, path: {
+            "content": "file contents here",
+            "truncated": False,
+        },
     )
 
     response = client.post("/api/connectors/dropbox/pull", json={"path": "/notes.txt"})
@@ -458,7 +465,10 @@ def test_github_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         github_client,
         "download_file_text",
-        lambda access_token, repo, path: {"content": "file contents here", "truncated": False},
+        lambda access_token, repo, path: {
+            "content": "file contents here",
+            "truncated": False,
+        },
     )
 
     response = client.post(
