@@ -157,6 +157,47 @@ def test_get_usage_by_agent_today_returns_empty_on_error():
     assert db.get_usage_by_agent_today() == []
 
 
+def test_get_agent_cost_stats_computes_average_and_weekly_rate():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = [{"cost": 0.01}, {"cost": 0.02}, {"cost": 0.03}]
+    (
+        mock_supabase.table.return_value.select.return_value.eq.return_value.gte.return_value.execute
+    ).return_value = mock_execute
+
+    stats = db.get_agent_cost_stats("coder", days=30)
+
+    assert stats["call_count"] == 3
+    assert stats["avg_cost_per_call"] == pytest.approx(0.02)
+    assert stats["calls_per_week"] == pytest.approx(3 / 30 * 7)
+    assert stats["days_sampled"] == 30
+
+
+def test_get_agent_cost_stats_no_calls_returns_zeros():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_execute = MagicMock()
+    mock_execute.data = []
+    (
+        mock_supabase.table.return_value.select.return_value.eq.return_value.gte.return_value.execute
+    ).return_value = mock_execute
+
+    stats = db.get_agent_cost_stats("coder")
+    assert stats == {
+        "call_count": 0,
+        "avg_cost_per_call": 0.0,
+        "calls_per_week": 0.0,
+        "days_sampled": 30,
+    }
+
+
+def test_get_agent_cost_stats_returns_zeros_on_error():
+    db, mock_supabase = _client_with_mocked_supabase()
+    mock_supabase.table.side_effect = Exception("connection refused")
+    stats = db.get_agent_cost_stats("coder", days=14)
+    assert stats["call_count"] == 0
+    assert stats["days_sampled"] == 14
+
+
 def test_get_table_counts_returns_count_per_table():
     db, mock_supabase = _client_with_mocked_supabase()
     mock_execute = MagicMock()

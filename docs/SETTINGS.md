@@ -89,6 +89,25 @@ built-in for now (`PRESETS` in `settings_schema.py`) — not user-editable, same
 model override being limited to one vetted option rather than free text. Applying one costs
 nothing by itself; it only changes what future requests use.
 
+### Cost simulator
+
+Editing a **max tokens** field in the matrix shows a live line under the table: how that change
+projects against your own real usage, via `GET /api/settings/cost-simulator`. It's honest about
+what it can and can't tell you:
+
+- It projects from **your actual task history** for that agent (real `cost`/`created_at` rows
+  over the trailing 30 days) — average $/call and calls/week — never a fabricated number. If an
+  agent has no history yet, it says so instead of showing a fake $0.00.
+- It scales that average proportionally to the max-tokens change (halve the ceiling, the
+  projection roughly halves) — a real simplification (output length doesn't scale perfectly
+  linearly with the ceiling), stated as such in the hint text, not hidden.
+- **Model changes aren't simulated** — the `usage` table rolls up a whole day per agent, so a
+  day where you tried both the default and cheaper model blends into one row; there's no clean
+  per-model cost split to project from. Changing the Model dropdown shows a plain note instead
+  of guessing a savings percentage Jarvis can't back up.
+
+Running the simulation costs nothing itself — it only reads history that's already there.
+
 ## Data Controls
 
 - **Auto-purge tasks older than (N days)** — a preference, not automatic. Vercel has no

@@ -4,6 +4,8 @@ offline and cost nothing."""
 
 import json
 
+import pytest
+
 
 def test_dashboard_serves_html(client):
     response = client.get("/")
@@ -652,6 +654,81 @@ def test_apply_preset_preserves_existing_enabled_and_temperature(client):
     assert config["coder"]["enabled"] is False
     assert config["coder"]["temperature"] == 0.9
     assert config["coder"]["model"] == "cheaper"
+
+
+# ---- Cost simulator ----
+
+
+def test_cost_simulator_rejects_unknown_agent(client):
+    response = client.get("/api/settings/cost-simulator?agent=not-real&max_tokens=512")
+    assert response.status_code == 400
+
+
+def test_cost_simulator_rejects_missing_max_tokens(client):
+    response = client.get("/api/settings/cost-simulator?agent=coder")
+    assert response.status_code == 400
+
+
+def test_cost_simulator_no_history_reports_no_data(client):
+    # conftest's default fake returns call_count 0 — a fresh install.
+    response = client.get("/api/settings/cost-simulator?agent=coder&max_tokens=512")
+    assert response.status_code == 200
+    body = json.loads(response.data)
+    assert body["has_data"] is False
+    assert body["projection"] is None
+    assert body["current_max_tokens"] == 1024  # coder's built-in default
+
+
+def test_cost_simulator_projects_from_real_history(client, monkeypatch):
+    from src.main import db_client
+
+    monkeypatch.setattr(
+        db_client,
+        "get_agent_cost_stats",
+        lambda agent_type, days=30: {
+            "call_count": 20,
+            "avg_cost_per_call": 0.01,
+            "calls_per_week": 4.0,
+            "days_sampled": 30,
+        },
+    )
+    response = client.get("/api/settings/cost-simulator?agent=coder&max_tokens=512")
+    assert response.status_code == 200
+    body = json.loads(response.data)
+    assert body["has_data"] is True
+    assert body["current_max_tokens"] == 1024
+    assert body["proposed_max_tokens"] == 512
+    # Halving max_tokens against a linear-scaling assumption halves the
+    # projected average cost and weekly spend.
+    assert body["projection"]["avg_cost_per_call_projected"] == pytest.approx(0.005)
+    assert body["projection"]["weekly_now"] == pytest.approx(0.04)
+    assert body["projection"]["weekly_projected"] == pytest.approx(0.02)
+
+
+def test_cost_simulator_uses_existing_override_as_current_max_tokens(
+    client, monkeypatch
+):
+    from src.main import db_client
+
+    client.post(
+        "/api/settings/agent-config",
+        data=json.dumps({"coder": {"max_tokens": 2000}}),
+        content_type="application/json",
+    )
+    monkeypatch.setattr(
+        db_client,
+        "get_agent_cost_stats",
+        lambda agent_type, days=30: {
+            "call_count": 5,
+            "avg_cost_per_call": 0.02,
+            "calls_per_week": 1.0,
+            "days_sampled": 30,
+        },
+    )
+    response = client.get("/api/settings/cost-simulator?agent=coder&max_tokens=1000")
+    body = json.loads(response.data)
+    assert body["current_max_tokens"] == 2000
+    assert body["projection"]["avg_cost_per_call_projected"] == pytest.approx(0.01)
 
 
 def test_disabled_agent_rejects_requests(client):
