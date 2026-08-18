@@ -2697,7 +2697,12 @@ async function fetchSkillsList(agentId) {
       const activateBtn = item.querySelector(".activate-btn");
       if (activateBtn) {
         activateBtn.addEventListener("click", async () => {
-          await fetch(`/api/skills/${id}/activate`, { method: "POST" });
+          const res = await fetch(`/api/skills/${id}/activate`, { method: "POST" });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            showToast(body.message || "Couldn't activate skill.");
+            return;
+          }
           showToast("Skill activated.");
           fetchSkillsList(agentId);
         });
@@ -2705,18 +2710,28 @@ async function fetchSkillsList(agentId) {
       const deactivateBtn = item.querySelector(".deactivate-btn");
       if (deactivateBtn) {
         deactivateBtn.addEventListener("click", async () => {
-          await fetch("/api/skills/deactivate", {
+          const res = await fetch("/api/skills/deactivate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ agent_type: agentId }),
           });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            showToast(body.message || "Couldn't deactivate skill.");
+            return;
+          }
           showToast("Reverted to built-in prompt.");
           fetchSkillsList(agentId);
         });
       }
       item.querySelector(".delete-skill-btn").addEventListener("click", async () => {
         if (!confirm("Delete this skill permanently?")) return;
-        await fetch(`/api/skills/${id}`, { method: "DELETE" });
+        const res = await fetch(`/api/skills/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          showToast(body.message || "Couldn't delete skill.");
+          return;
+        }
         fetchSkillsList(agentId);
       });
     });
@@ -2922,7 +2937,7 @@ async function pullDropboxFile(path, btn) {
       return;
     }
     await navigator.clipboard.writeText(body.content);
-    showToast("Copied — paste it into your message.");
+    showToast(body.truncated ? "Copied — file was too large, only the first part was pulled." : "Copied — paste it into your message.");
   } catch (err) {
     showToast("Network error — couldn't pull that file.");
   } finally {
@@ -3096,7 +3111,7 @@ async function pullGitHubFile(repo, path, btn) {
       return;
     }
     await navigator.clipboard.writeText(body.content);
-    showToast("Copied — paste it into your message.");
+    showToast(body.truncated ? "Copied — file was too large, only the first part was pulled." : "Copied — paste it into your message.");
   } catch (err) {
     showToast("Network error — couldn't pull that file.");
   } finally {

@@ -128,9 +128,12 @@ class GitHubClient:
             for entry in entries
         ]
 
-    def download_file_text(self, access_token: str, repo: str, path: str) -> str:
+    def download_file_text(self, access_token: str, repo: str, path: str) -> Dict[str, Any]:
         """Downloads a file's raw content (not the base64-wrapped
-        contents API), capped at MAX_FILE_BYTES."""
+        contents API), capped at MAX_FILE_BYTES. Returns
+        {"content", "truncated"} so callers can tell the user when a
+        file was cut off rather than silently handing back a partial
+        copy."""
         resp = requests.get(
             f"{GITHUB_API_BASE}/repos/{repo}/contents/{path}",
             headers={
@@ -140,7 +143,11 @@ class GitHubClient:
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
-        return resp.content[:MAX_FILE_BYTES].decode("utf-8", errors="replace")
+        content = resp.content
+        return {
+            "content": content[:MAX_FILE_BYTES].decode("utf-8", errors="replace"),
+            "truncated": len(content) > MAX_FILE_BYTES,
+        }
 
     def _headers(self, access_token: str) -> Dict[str, str]:
         return {

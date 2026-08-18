@@ -290,13 +290,14 @@ def test_dropbox_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         dropbox_client,
         "download_file_text",
-        lambda access_token, path: "file contents here",
+        lambda access_token, path: {"content": "file contents here", "truncated": False},
     )
 
     response = client.post("/api/connectors/dropbox/pull", json={"path": "/notes.txt"})
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["content"] == "file contents here"
+    assert data["truncated"] is False
 
 
 # ---- GitHub connector ----
@@ -457,7 +458,7 @@ def test_github_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         github_client,
         "download_file_text",
-        lambda access_token, repo, path: "file contents here",
+        lambda access_token, repo, path: {"content": "file contents here", "truncated": False},
     )
 
     response = client.post(
@@ -467,6 +468,43 @@ def test_github_pull_returns_file_content(client, monkeypatch):
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["content"] == "file contents here"
+    assert data["truncated"] is False
+
+
+def test_dropbox_pull_reports_truncated_when_file_capped(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    monkeypatch.setattr(
+        dropbox_client, "refresh_access_token", lambda refresh_token: "fresh-at"
+    )
+    monkeypatch.setattr(
+        dropbox_client,
+        "download_file_text",
+        lambda access_token, path: {"content": "x" * 200_000, "truncated": True},
+    )
+
+    response = client.post("/api/connectors/dropbox/pull", json={"path": "/big.txt"})
+    data = json.loads(response.data)
+    assert data["truncated"] is True
+
+
+def test_github_pull_reports_truncated_when_file_capped(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    monkeypatch.setattr(
+        github_client,
+        "download_file_text",
+        lambda access_token, repo, path: {"content": "x" * 200_000, "truncated": True},
+    )
+
+    response = client.post(
+        "/api/connectors/github/pull",
+        json={"repo": "someuser/jarvis", "path": "big.txt"},
+    )
+    data = json.loads(response.data)
+    assert data["truncated"] is True
 
 
 def test_set_credit_limit_saves_and_usage_reflects_it(client):
