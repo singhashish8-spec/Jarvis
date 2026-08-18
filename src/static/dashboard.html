@@ -4,43 +4,128 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Jarvis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
   // Applied synchronously, before first paint, so the page never flashes
-  // the wrong theme while the rest of the app's script loads.
+  // the wrong theme (or the wrong accent color) while the rest of the
+  // app's script loads. The accent math lives here (not in the main
+  // script further down) specifically so it can run this early, and is
+  // exposed on window so Settings > Appearance reuses the exact same
+  // functions instead of a second, driftable copy.
   document.documentElement.setAttribute(
     "data-theme",
     (localStorage.getItem("jarvisSettingsTheme") || "dark") === "bright" ? "light" : "dark"
   );
+
+  function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    const k = (n) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const toHex = (x) => Math.round(255 * x).toString(16).padStart(2, "0");
+    return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+  }
+  function relativeLuminance(hex) {
+    const c = hex.slice(1).match(/.{2}/g).map((x) => {
+      const v = parseInt(x, 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function contrastRatio(l1, l2) {
+    const [a, b] = l1 > l2 ? [l1, l2] : [l2, l1];
+    return (a + 0.05) / (b + 0.05);
+  }
+  function textOnAccent(hex) {
+    const l = relativeLuminance(hex);
+    return contrastRatio(l, 1) > contrastRatio(l, 0) ? "#ffffff" : "#14130f";
+  }
+  // Blends `amount` of accentHex into baseHex — used for the active-item
+  // highlight so it's always visibly tinted relative to its own
+  // background, instead of an independently computed pale shade that can
+  // (at some hues) land too close to the sidebar's own neutral tone.
+  function mixHex(accentHex, baseHex, amount) {
+    const parse = (h) => h.slice(1).match(/.{2}/g).map((x) => parseInt(x, 16));
+    const [ar, ag, ab] = parse(accentHex);
+    const [br, bg, bb] = parse(baseHex);
+    const mix = (a, b) => Math.round(a * amount + b * (1 - amount));
+    const toHex = (x) => x.toString(16).padStart(2, "0");
+    return `#${toHex(mix(ar, br))}${toHex(mix(ag, bg))}${toHex(mix(ab, bb))}`;
+  }
+
+  const ACCENT_SIDEBAR_HEX = { dark: "#201f1c", light: "#f3f2ed" };
+
+  function applyAccent(hue, washPct) {
+    const dark = document.documentElement.getAttribute("data-theme") === "dark";
+    const root = document.documentElement.style;
+
+    const accentHex = dark ? hslToHex(hue, 62, 70) : hslToHex(hue, 56, 45);
+    const accentStrong = dark ? hslToHex(hue, 65, 60) : hslToHex(hue, 58, 38);
+    const accentText = textOnAccent(accentHex);
+    const activeBg = mixHex(
+      accentHex,
+      dark ? ACCENT_SIDEBAR_HEX.dark : ACCENT_SIDEBAR_HEX.light,
+      dark ? 0.32 : 0.18
+    );
+    // Eased, not linear — a linear ramp left the whole low-to-mid slider
+    // range (where the default and most drags land) looking near-identical
+    // to "off."
+    const washFraction = washPct === 0 ? 0 : Math.pow(washPct / 100, 0.55);
+    const washAlpha = washFraction * (dark ? 0.32 : 0.26);
+    const washColor = `hsla(${hue}, 70%, ${dark ? 55 : 60}%, ${washAlpha.toFixed(3)})`;
+
+    root.setProperty("--accent", accentHex);
+    root.setProperty("--accent-strong", accentStrong);
+    root.setProperty("--accent-text-on", accentText);
+    root.setProperty("--active-bg", activeBg);
+    root.setProperty("--wash", washColor);
+  }
+
+  applyAccent(
+    Number(localStorage.getItem("jarvisAccentHue")) || 231,
+    localStorage.getItem("jarvisWashPct") === null ? 35 : Number(localStorage.getItem("jarvisWashPct"))
+  );
 </script>
 <style>
-  /* ---------- Design tokens (Windows 11 / Fluent) ---------- */
+  /* ---------- Design tokens (Calm Neutral) ---------- */
   :root, :root[data-theme="dark"] {
-    --sidebar-bg: #1f1f1f;
-    --main-bg: #202020;
-    --bubble-user: #323232;
-    --input-bg: #2c2c2c;
-    --border: rgba(255,255,255,0.08);
-    --border-soft: rgba(255,255,255,0.13);
-    --text: #ffffff;
-    --text-dim: rgba(255,255,255,0.68);
-    --text-dimmer: rgba(255,255,255,0.42);
+    --sidebar-bg: #201f1c;
+    --main-bg: #1c1b18;
+    --bubble-user: #2c2b26;
+    --input-bg: #242320;
+    --border: #35332c;
+    --border-soft: #403d35;
+    --text: #eeebe4;
+    --text-dim: #9c9689;
+    --text-dimmer: #6e695d;
     --error: #ff99a4;
     --ok: #6ccb5f;
     --warn: #ffc83d;
-    --surface: #2c2c2c;
-    --surface-2: #383838;
-    --accent: #4cc2ff;
-    --accent-strong: #0f8fe0;
-    --accent-text-on: #072033;
+    --surface: #242320;
+    --surface-2: #2e2c27;
+    /* --accent/--accent-strong/--accent-text-on/--active-bg/--wash are
+       computed at runtime by applyAccent() from the person's chosen hue
+       (Settings > Appearance) — these are just the pre-JS fallback so the
+       page isn't unstyled for the one frame before that script runs. */
+    --accent: #8b9aee;
+    --accent-strong: #6f80e0;
+    --accent-text-on: #17161f;
+    --active-bg: #2c2c3c;
+    --wash: transparent;
     --shadow-1: 0 1px 2px rgba(0,0,0,.35);
     --shadow-2: 0 8px 28px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.35);
-    --overlay-bg: rgba(32,32,32,.72);
-    --glass-bg: rgba(255,255,255,.05);
-    --glass-bg-strong: rgba(255,255,255,.09);
-    --glass-highlight: rgba(255,255,255,.10);
-    --glass-shine: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 60%);
-    --depth-1: inset 0 1px 0 var(--glass-highlight), 0 1px 3px rgba(0,0,0,.4);
-    --depth-active: inset 0 1px 0 var(--glass-highlight), inset 3px 0 0 var(--accent), 0 2px 8px rgba(0,0,0,.4);
+    --overlay-bg: rgba(28,27,24,.94);
+    /* Calm Neutral uses plain solid surfaces, not acrylic/glass — these
+       exist only so the many existing `var(--glass-*)`/`var(--depth-*)`
+       declarations resolve to something calm instead of undefined. */
+    --glass-bg: var(--surface);
+    --glass-bg-strong: var(--surface-2);
+    --glass-highlight: transparent;
+    --glass-shine: none;
+    --depth-1: var(--shadow-1);
+    --depth-active: var(--shadow-1);
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -58,32 +143,34 @@
     --sd-crit: var(--error);
   }
   :root[data-theme="light"] {
-    --sidebar-bg: #f7f7f7;
-    --main-bg: #f3f3f3;
-    --bubble-user: #e6e6e6;
+    --sidebar-bg: #f3f2ed;
+    --main-bg: #fafaf7;
+    --bubble-user: #efede6;
     --input-bg: #ffffff;
-    --border: rgba(0,0,0,0.08);
-    --border-soft: rgba(0,0,0,0.14);
-    --text: #1a1a1a;
-    --text-dim: rgba(0,0,0,0.6);
-    --text-dimmer: rgba(0,0,0,0.4);
+    --border: #e6e3da;
+    --border-soft: #dad6cb;
+    --text: #221f1a;
+    --text-dim: #736c5f;
+    --text-dimmer: #a39c8c;
     --error: #c42b1c;
     --ok: #0f7b0f;
     --warn: #9d5d00;
     --surface: #ffffff;
-    --surface-2: #ececec;
-    --accent: #0067c0;
-    --accent-strong: #005a9e;
+    --surface-2: #ece9e2;
+    --accent: #5b6ecf;
+    --accent-strong: #4657ad;
     --accent-text-on: #ffffff;
-    --shadow-1: 0 1px 2px rgba(0,0,0,.08);
-    --shadow-2: 0 8px 24px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.08);
-    --overlay-bg: rgba(255,255,255,.72);
-    --glass-bg: rgba(255,255,255,.55);
-    --glass-bg-strong: rgba(255,255,255,.8);
-    --glass-highlight: rgba(255,255,255,.9);
-    --glass-shine: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,0) 60%);
-    --depth-1: inset 0 1px 0 var(--glass-highlight), 0 1px 3px rgba(0,0,0,.1);
-    --depth-active: inset 0 1px 0 var(--glass-highlight), inset 3px 0 0 var(--accent), 0 2px 8px rgba(0,0,0,.1);
+    --active-bg: #e9eaf7;
+    --wash: transparent;
+    --shadow-1: 0 1px 2px rgba(30,28,22,.06);
+    --shadow-2: 0 8px 24px rgba(30,28,22,.1), 0 2px 8px rgba(30,28,22,.06);
+    --overlay-bg: rgba(255,255,255,.94);
+    --glass-bg: var(--surface);
+    --glass-bg-strong: var(--surface-2);
+    --glass-highlight: transparent;
+    --glass-shine: none;
+    --depth-1: var(--shadow-1);
+    --depth-active: var(--shadow-1);
 
     --sd-bg: var(--main-bg);
     --sd-surface: var(--surface);
@@ -103,8 +190,11 @@
     margin: 0;
   }
   body {
-    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, Roboto, Helvetica, Arial, sans-serif;
-    background: var(--main-bg);
+    font-family: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
+    /* Percentage-sized (not fixed px) so the ambient wash reads at any
+       viewport width, including a narrow one — a fixed-px radius reads as
+       basically invisible in a narrow panel even at full wash strength. */
+    background: radial-gradient(140% 120% at 22% -10%, var(--wash), transparent 62%), var(--main-bg);
     color: var(--text);
     overflow: hidden;
     transition: background .15s ease, color .15s ease;
@@ -203,7 +293,7 @@
   }
   .chat-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); }
   .chat-item.active {
-    background: var(--surface-2);
+    background: var(--active-bg);
     background-image: var(--glass-shine);
     color: var(--text);
     box-shadow: var(--depth-active);
@@ -531,7 +621,7 @@
   }
   .agent-option:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); }
   .agent-option.active {
-    background: var(--surface-2);
+    background: var(--active-bg);
     background-image: var(--glass-shine);
     box-shadow: var(--depth-active);
   }
@@ -1003,7 +1093,7 @@
   .settings-nav-item .nav-icon { font-size: 15px; flex-shrink: 0; }
   .settings-nav-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); color: var(--sd-text); }
   .settings-nav-item.active {
-    background: var(--sd-surface-2);
+    background: var(--active-bg);
     background-image: var(--glass-shine);
     color: var(--sd-text);
     font-weight: 600;
@@ -1118,6 +1208,58 @@
     cursor: pointer; font-family: inherit;
   }
   .cd-theme-toggle button.active { background: var(--sd-bg); color: var(--sd-text); box-shadow: var(--shadow-1); }
+
+  /* ---------- Accent color + ambient wash pickers ---------- */
+  .hue-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--sd-dim);
+    margin-bottom: 6px;
+  }
+  .hue-slider-row { display: flex; align-items: center; gap: 10px; }
+  .accent-swatch { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--sd-border); flex-shrink: 0; }
+  .hue-slider, .wash-slider {
+    flex: 1;
+    appearance: none;
+    -webkit-appearance: none;
+    height: 10px;
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  .hue-slider {
+    --swatch-color: #5b6ecf;
+    background: linear-gradient(to right,
+      hsl(0,70%,55%), hsl(60,70%,55%), hsl(120,65%,50%),
+      hsl(180,65%,50%), hsl(240,70%,60%), hsl(300,65%,55%), hsl(360,70%,55%));
+  }
+  .wash-slider {
+    --wash-track-color: #5b6ecf;
+    background: linear-gradient(to right, transparent, var(--wash-track-color)),
+      repeating-conic-gradient(var(--sd-border) 0% 25%, var(--sd-surface) 0% 50%) 0 0 / 8px 8px;
+  }
+  .hue-slider::-webkit-slider-thumb, .wash-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35);
+    cursor: pointer;
+  }
+  .hue-slider::-webkit-slider-thumb { background: var(--swatch-color); border: 2px solid var(--sd-surface); }
+  .wash-slider::-webkit-slider-thumb { background: var(--sd-surface); border: 2px solid var(--wash-track-color); }
+  .hue-slider::-moz-range-thumb, .wash-slider::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35);
+    cursor: pointer;
+  }
+  .hue-slider::-moz-range-thumb { background: var(--swatch-color); border: 2px solid var(--sd-surface); }
+  .wash-slider::-moz-range-thumb { background: var(--sd-surface); border: 2px solid var(--wash-track-color); }
+  .hue-slider:focus-visible, .wash-slider:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 3px; }
 
   .cd-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 1px; background: var(--sd-border); border: 1px solid var(--sd-border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 12px; }
   .cd-stats .cd-stat { background: var(--sd-surface); padding: 11px 13px; }
@@ -2169,8 +2311,16 @@ function closeSettings() {
   document.getElementById("settings-backdrop").classList.remove("show");
 }
 
+let currentAccentHue = Number(localStorage.getItem("jarvisAccentHue")) || 231;
+let currentWashPct = localStorage.getItem("jarvisWashPct") === null
+  ? 35
+  : Number(localStorage.getItem("jarvisWashPct"));
+
 function applySettingsTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme === "bright" ? "light" : "dark");
+  // Accent lightness/text-contrast are theme-dependent (same hue, different
+  // lightness curve) — re-derive them now that the theme attribute changed.
+  applyAccent(currentAccentHue, currentWashPct);
 }
 
 function filterSettingsSearch(query) {
@@ -2726,6 +2876,33 @@ function renderAppearanceCategory(content) {
       </div>
     </div>
     <div class="settings-field">
+      <div class="settings-field-label"><span>Accent color</span>
+        <button class="info-btn" id="accent-info-btn">i</button>
+      </div>
+      <div class="info-note" id="note-accent_color">
+        Pick one hue — the primary button, active-chat highlight, and every accent throughout the
+        app are computed from it. Saturation and lightness are fixed by us so any pick stays
+        legible, and the button's own text color is chosen automatically for contrast. Saved in
+        this browser only.
+      </div>
+      <div class="hue-label">
+        <span>Hue</span>
+        <span id="accent-hex-readout"></span>
+      </div>
+      <div class="hue-slider-row">
+        <span class="accent-swatch" id="accent-swatch"></span>
+        <input type="range" min="0" max="360" value="${currentAccentHue}" class="hue-slider" id="accent-hue-slider" aria-label="Accent hue">
+      </div>
+      <div class="hue-label" style="margin-top:12px;">
+        <span>Ambient wash</span>
+        <span id="wash-pct-readout"></span>
+      </div>
+      <div class="hue-slider-row">
+        <span class="accent-swatch" id="wash-swatch"></span>
+        <input type="range" min="0" max="100" value="${currentWashPct}" class="wash-slider" id="accent-wash-slider" aria-label="Ambient wash strength">
+      </div>
+    </div>
+    <div class="settings-field">
       <div class="settings-field-label"><span>Compact messages</span>
         <button class="info-btn" id="compact-info-btn">i</button>
       </div>
@@ -2746,8 +2923,43 @@ function renderAppearanceCategory(content) {
       localStorage.setItem("jarvisSettingsTheme", next);
       applySettingsTheme(next);
       content.querySelectorAll("#settings-theme-toggle button").forEach((b) => b.classList.toggle("active", b === btn));
+      updateAccentReadouts();
     });
   });
+
+  function washLabel(pct) {
+    if (pct === 0) return "Off";
+    if (pct < 25) return "Barely there";
+    if (pct < 55) return "Subtle";
+    if (pct < 80) return "Noticeable";
+    return "Strong";
+  }
+  function updateAccentReadouts() {
+    const accentHex = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    document.getElementById("accent-swatch").style.background = accentHex;
+    document.getElementById("accent-hex-readout").textContent = `${accentHex.toUpperCase()} · ${currentAccentHue}°`;
+    document.getElementById("accent-hue-slider").style.setProperty("--swatch-color", accentHex);
+    const washColor = getComputedStyle(document.documentElement).getPropertyValue("--wash").trim();
+    document.getElementById("wash-swatch").style.background = washColor || "transparent";
+    document.getElementById("wash-pct-readout").textContent = `${washLabel(currentWashPct)} · ${currentWashPct}%`;
+    document.getElementById("accent-wash-slider").style.setProperty("--wash-track-color", accentHex);
+  }
+  updateAccentReadouts();
+
+  content.querySelector("#accent-info-btn").addEventListener("click", () => toggleInfoNote("accent_color"));
+  content.querySelector("#accent-hue-slider").addEventListener("input", (e) => {
+    currentAccentHue = Number(e.target.value);
+    localStorage.setItem("jarvisAccentHue", String(currentAccentHue));
+    applyAccent(currentAccentHue, currentWashPct);
+    updateAccentReadouts();
+  });
+  content.querySelector("#accent-wash-slider").addEventListener("input", (e) => {
+    currentWashPct = Number(e.target.value);
+    localStorage.setItem("jarvisWashPct", String(currentWashPct));
+    applyAccent(currentAccentHue, currentWashPct);
+    updateAccentReadouts();
+  });
+
   content.querySelector("#compact-info-btn").addEventListener("click", () => toggleInfoNote("compact_mode"));
   content.querySelector("#compact-toggle").addEventListener("change", (e) => {
     localStorage.setItem("jarvisCompactMode", e.target.checked ? "1" : "0");
