@@ -1056,10 +1056,10 @@
   .settings-nav {
     flex-shrink: 0;
     display: flex;
-    overflow-x: auto;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--sd-border);
     padding: 8px;
-    gap: 2px;
+    gap: 6px;
   }
   @media (min-width: 640px) {
     .settings-nav {
@@ -1077,18 +1077,26 @@
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     text-align: left;
-    padding: 9px 12px;
+    padding: 8px 12px;
     border-radius: var(--radius-md);
     background: none;
-    border: none;
+    border: 1px solid transparent;
     color: var(--sd-dim);
     font-size: 13px;
     cursor: pointer;
     white-space: nowrap;
     position: relative;
     transition: background .12s ease, box-shadow .12s ease;
+  }
+  @media (max-width: 639px) {
+    /* Below the point where the nav becomes a vertical rail, it wraps
+       onto multiple lines instead of scrolling sideways — every category
+       should be visible without having to discover a horizontal
+       scrollbar first. A visible border tells wrapped chips apart from
+       each other now that they're not in one continuous row. */
+    .settings-nav-item { border-color: var(--sd-border); font-size: 12.5px; padding: 7px 10px; }
   }
   .settings-nav-item .nav-icon { font-size: 15px; flex-shrink: 0; }
   .settings-nav-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); color: var(--sd-text); }
@@ -1268,9 +1276,58 @@
   .cd-stats .cd-stat .v small { font-size: 10.5px; color: var(--sd-dim); font-weight: 400; }
   .cd-stats .cd-stat .v.warn { color: var(--sd-warn); }
 
-  .agent-config-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .agent-config-table th, .agent-config-table td { padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--sd-border); }
-  .agent-config-table th { color: var(--sd-dimmer); font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+  .agent-config-table { width: 100%; font-size: 12px; display: flex; flex-direction: column; }
+  .ac-header-row { display: none; }
+  @media (min-width: 640px) {
+    .ac-header-row, .agent-config-row {
+      display: grid;
+      grid-template-columns: 1.5fr 0.8fr 1.7fr 0.7fr 0.9fr;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 6px;
+      border-bottom: 1px solid var(--sd-border);
+    }
+    .ac-header-row {
+      color: var(--sd-dimmer);
+      font-weight: 500;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .agent-config-row .ac-cell::before { content: none; }
+  }
+  @media (max-width: 639px) {
+    /* A 5-column table can't fit a phone's width without forcing a
+       horizontal scroll to see Temp/Max tokens — that scroll is the
+       actual bug. Below the breakpoint this becomes a stack of cards,
+       one row per agent, each field labeled inline instead of by a
+       column header. */
+    .agent-config-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--sd-border);
+      border-radius: var(--radius-md);
+      background: var(--sd-surface);
+    }
+    .agent-config-row .ac-cell {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .agent-config-row .ac-cell::before {
+      content: attr(data-label);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--sd-dimmer);
+    }
+    .agent-config-row .ac-cell-agent { font-size: 13px; font-weight: 600; }
+    .agent-config-row .ac-cell-agent::before { content: none; }
+    .agent-config-row .ac-model { max-width: 62%; }
+  }
   .agent-config-table input[type="number"] { width: 64px; }
   .agent-config-table select { max-width: 110px; }
   .cd-agent-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
@@ -2559,18 +2616,18 @@ async function renderAgentDefaultsCategory(content) {
       const def = body.defaults[a.id] || {};
       const modelIsCheaper = cfg.model === "cheaper";
       return `
-        <tr data-agent="${a.id}">
-          <td><span class="cd-agent-dot" style="background:${AGENT_COLORS[a.id] || "#87878f"};"></span>${a.label}</td>
-          <td><input type="checkbox" class="ac-enabled" ${cfg.enabled === false ? "" : "checked"}></td>
-          <td>
+        <div class="agent-config-row" data-agent="${a.id}">
+          <div class="ac-cell ac-cell-agent"><span class="cd-agent-dot" style="background:${AGENT_COLORS[a.id] || "#87878f"};"></span>${a.label}</div>
+          <div class="ac-cell" data-label="Enabled"><input type="checkbox" class="ac-enabled" ${cfg.enabled === false ? "" : "checked"}></div>
+          <div class="ac-cell" data-label="Model">
             <select class="ac-model">
               <option value="" ${!modelIsCheaper ? "selected" : ""}>Default (${def.model})</option>
               <option value="cheaper" ${modelIsCheaper ? "selected" : ""}>Cheaper (${body.cheaper_model})</option>
             </select>
-          </td>
-          <td><input type="number" class="ac-temperature" step="0.1" min="0" max="2" placeholder="${def.temperature}" value="${cfg.temperature !== undefined && cfg.temperature !== null ? cfg.temperature : ""}"></td>
-          <td><input type="number" class="ac-max-tokens" min="1" max="4096" placeholder="${def.max_tokens}" value="${cfg.max_tokens !== undefined && cfg.max_tokens !== null ? cfg.max_tokens : ""}"></td>
-        </tr>
+          </div>
+          <div class="ac-cell" data-label="Temp"><input type="number" class="ac-temperature" step="0.1" min="0" max="2" placeholder="${def.temperature}" value="${cfg.temperature !== undefined && cfg.temperature !== null ? cfg.temperature : ""}"></div>
+          <div class="ac-cell" data-label="Max tokens"><input type="number" class="ac-max-tokens" min="1" max="4096" placeholder="${def.max_tokens}" value="${cfg.max_tokens !== undefined && cfg.max_tokens !== null ? cfg.max_tokens : ""}"></div>
+        </div>
       `;
     }).join("");
 
@@ -2589,11 +2646,9 @@ async function renderAgentDefaultsCategory(content) {
           costs nothing to set, but produces longer — and more expensive — replies on every
           future call to that agent.
         </div>
-        <div style="overflow-x:auto;">
-          <table class="agent-config-table">
-            <thead><tr><th>Agent</th><th>Enabled</th><th>Model</th><th>Temp</th><th>Max tokens</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+        <div class="agent-config-table">
+          <div class="ac-header-row"><div>Agent</div><div>Enabled</div><div>Model</div><div>Temp</div><div>Max tokens</div></div>
+          ${rows}
         </div>
         <div class="settings-hint" id="cost-simulator-hint">Change a max-tokens value above to see its estimated weekly cost impact.</div>
         <div class="settings-save-row">
@@ -2628,7 +2683,7 @@ function debounceSimulateCost(input) {
 async function simulateCost(input) {
   const hint = document.getElementById("cost-simulator-hint");
   if (!hint) return;
-  const row = input.closest("tr");
+  const row = input.closest(".agent-config-row");
   const agentId = row.getAttribute("data-agent");
   const maxTokens = parseInt(input.value, 10);
   if (!maxTokens || maxTokens < 1) {
@@ -2657,7 +2712,7 @@ async function simulateCost(input) {
 }
 
 async function saveAgentConfigMatrix() {
-  const rows = document.querySelectorAll("#agent-defaults-inner .agent-config-table tbody tr");
+  const rows = document.querySelectorAll("#agent-defaults-inner .agent-config-row");
   const config = {};
   rows.forEach((row) => {
     const agentId = row.getAttribute("data-agent");
