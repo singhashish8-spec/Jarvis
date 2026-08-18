@@ -99,8 +99,11 @@ class ReplicateClient:
             "total_tokens", "predict_time_seconds", "estimated_cost_usd"}}.
             Token counts are 0 when the model doesn't report them (Replicate
             only returns `metrics.input_token_count` / `output_token_count`
-            for language models); `estimated_cost_usd` falls back to
-            `predict_time_seconds * GPU_RATE_PER_SECOND_USD` in that case.
+            for language models) — they're captured for display purposes
+            only. `estimated_cost_usd` is always
+            `predict_time_seconds * GPU_RATE_PER_SECOND_USD`: Replicate
+            bills every prediction by compute time, regardless of what a
+            model's `metrics` block reports.
         """
         if not self.api_key:
             raise ValueError("REPLICATE_API_KEY is not set")
@@ -147,8 +150,9 @@ class ReplicateClient:
         """Turn a prediction's `metrics` block into token/cost usage.
 
         Language models report `input_token_count` / `output_token_count`;
-        every model reports `predict_time` (compute seconds). When token
-        counts are absent, cost falls back to compute-time billing.
+        every model reports `predict_time` (compute seconds). Token counts
+        are surfaced for display only — cost is always computed from
+        compute-time billing, since that's what Replicate actually charges.
         """
         input_tokens = int(metrics.get("input_token_count") or 0)
         output_tokens = int(metrics.get("output_token_count") or 0)

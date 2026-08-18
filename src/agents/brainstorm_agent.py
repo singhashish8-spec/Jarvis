@@ -49,6 +49,7 @@ class BrainstormAgent(BaseAgent):
                 {"topic": topic, "context": context, "style": style},
             )
             model, version = resolve_model_and_version(self.settings, MODEL)
+            self.model_name = model
             run_result = self.replicate_client.run(
                 model,
                 {

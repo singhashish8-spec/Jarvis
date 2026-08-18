@@ -43,6 +43,7 @@ class TesterAgent(BaseAgent):
                 {"code": code, "description": description, "framework": framework},
             )
             model, version = resolve_model_and_version(self.settings, MODEL)
+            self.model_name = model
             run_result = self.replicate_client.run(
                 model,
                 {

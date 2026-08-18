@@ -65,6 +65,48 @@ def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
     assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
 
 
+def test_usage_endpoint_zero_credit_limit_does_not_crash_and_shows_bar(
+    client, monkeypatch
+):
+    from src.config import config
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 0.0)
+    response = client.get("/api/usage")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["credit_limit_usd"] == 0.0
+    assert data["credit_remaining_usd"] == -data["estimated_cost_usd_total"]
+    assert data["budget_alert"]["current_pct"] == (
+        100.0 if data["estimated_cost_usd_total"] > 0 else 0.0
+    )
+
+
+def test_usage_endpoint_zero_credit_limit_triggers_alert_on_any_spend(
+    client, monkeypatch
+):
+    from src.config import config
+    from src.main import db_client
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 0.0)
+    monkeypatch.setattr(
+        db_client,
+        "get_usage_summary",
+        lambda: {
+            "tokens_used_today": 10,
+            "tokens_used_total": 10,
+            "estimated_cost_usd_total": 0.01,
+        },
+    )
+    client.post(
+        "/api/settings",
+        data=json.dumps({"budget_alert_threshold_pct": 50}),
+        content_type="application/json",
+    )
+    data = json.loads(client.get("/api/usage").data)
+    assert data["budget_alert"]["current_pct"] == 100.0
+    assert data["budget_alert"]["triggered"] is True
+
+
 def test_usage_endpoint_includes_by_agent_breakdown(client, monkeypatch):
     from src.main import db_client
 
@@ -252,13 +294,17 @@ def test_dropbox_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         dropbox_client,
         "download_file_text",
-        lambda access_token, path: "file contents here",
+        lambda access_token, path: {
+            "content": "file contents here",
+            "truncated": False,
+        },
     )
 
     response = client.post("/api/connectors/dropbox/pull", json={"path": "/notes.txt"})
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["content"] == "file contents here"
+    assert data["truncated"] is False
 
 
 # ---- GitHub connector ----
@@ -419,7 +465,10 @@ def test_github_pull_returns_file_content(client, monkeypatch):
     monkeypatch.setattr(
         github_client,
         "download_file_text",
-        lambda access_token, repo, path: "file contents here",
+        lambda access_token, repo, path: {
+            "content": "file contents here",
+            "truncated": False,
+        },
     )
 
     response = client.post(
@@ -429,6 +478,43 @@ def test_github_pull_returns_file_content(client, monkeypatch):
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["content"] == "file contents here"
+    assert data["truncated"] is False
+
+
+def test_dropbox_pull_reports_truncated_when_file_capped(client, monkeypatch):
+    from src.main import db_client, dropbox_client
+
+    db_client.set_setting("dropbox_refresh_token", "rt")
+    monkeypatch.setattr(
+        dropbox_client, "refresh_access_token", lambda refresh_token: "fresh-at"
+    )
+    monkeypatch.setattr(
+        dropbox_client,
+        "download_file_text",
+        lambda access_token, path: {"content": "x" * 200_000, "truncated": True},
+    )
+
+    response = client.post("/api/connectors/dropbox/pull", json={"path": "/big.txt"})
+    data = json.loads(response.data)
+    assert data["truncated"] is True
+
+
+def test_github_pull_reports_truncated_when_file_capped(client, monkeypatch):
+    from src.main import db_client, github_client
+
+    db_client.set_setting("github_access_token", "gho_at")
+    monkeypatch.setattr(
+        github_client,
+        "download_file_text",
+        lambda access_token, repo, path: {"content": "x" * 200_000, "truncated": True},
+    )
+
+    response = client.post(
+        "/api/connectors/github/pull",
+        json={"repo": "someuser/jarvis", "path": "big.txt"},
+    )
+    data = json.loads(response.data)
+    assert data["truncated"] is True
 
 
 def test_set_credit_limit_saves_and_usage_reflects_it(client):

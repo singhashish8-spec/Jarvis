@@ -98,8 +98,8 @@ def test_download_file_text_decodes_and_caps_size():
     client = _client()
     big_content = ("x" * 50).encode("utf-8")
     with patch("requests.post", return_value=_response(content=big_content)):
-        text = client.download_file_text("at", "/notes.txt")
-    assert text == "x" * 50
+        result = client.download_file_text("at", "/notes.txt")
+    assert result == {"content": "x" * 50, "truncated": False}
 
 
 def test_download_file_text_truncates_to_max_bytes():
@@ -108,5 +108,6 @@ def test_download_file_text_truncates_to_max_bytes():
 
     oversized = b"a" * (MAX_FILE_BYTES + 500)
     with patch("requests.post", return_value=_response(content=oversized)):
-        text = client.download_file_text("at", "/big.txt")
-    assert len(text) == MAX_FILE_BYTES
+        result = client.download_file_text("at", "/big.txt")
+    assert len(result["content"]) == MAX_FILE_BYTES
+    assert result["truncated"] is True

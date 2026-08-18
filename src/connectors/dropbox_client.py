@@ -123,10 +123,13 @@ class DropboxClient:
             for entry in entries
         ]
 
-    def download_file_text(self, access_token: str, path: str) -> str:
+    def download_file_text(self, access_token: str, path: str) -> Dict[str, Any]:
         """Downloads a file and decodes it as text, capped at
         MAX_FILE_BYTES. Non-text files will just decode to noise —
-        this is meant for docs/code/notes, not binaries."""
+        this is meant for docs/code/notes, not binaries. Returns
+        {"content", "truncated"} so callers can tell the user when a
+        file was cut off rather than silently handing back a partial
+        copy."""
         resp = requests.post(
             f"{DROPBOX_CONTENT_BASE}/files/download",
             headers={
@@ -136,7 +139,11 @@ class DropboxClient:
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
-        return resp.content[:MAX_FILE_BYTES].decode("utf-8", errors="replace")
+        content = resp.content
+        return {
+            "content": content[:MAX_FILE_BYTES].decode("utf-8", errors="replace"),
+            "truncated": len(content) > MAX_FILE_BYTES,
+        }
 
     def _headers(self, access_token: str) -> Dict[str, str]:
         return {

@@ -117,8 +117,8 @@ def test_download_file_text_decodes_and_caps_size():
     client = _client()
     content = ("y" * 50).encode("utf-8")
     with patch("requests.get", return_value=_response(content=content)):
-        text = client.download_file_text("at", "someuser/jarvis", "README.md")
-    assert text == "y" * 50
+        result = client.download_file_text("at", "someuser/jarvis", "README.md")
+    assert result == {"content": "y" * 50, "truncated": False}
 
 
 def test_download_file_text_truncates_to_max_bytes():
@@ -127,5 +127,6 @@ def test_download_file_text_truncates_to_max_bytes():
 
     oversized = b"a" * (MAX_FILE_BYTES + 500)
     with patch("requests.get", return_value=_response(content=oversized)):
-        text = client.download_file_text("at", "someuser/jarvis", "big.txt")
-    assert len(text) == MAX_FILE_BYTES
+        result = client.download_file_text("at", "someuser/jarvis", "big.txt")
+    assert len(result["content"]) == MAX_FILE_BYTES
+    assert result["truncated"] is True

@@ -209,9 +209,14 @@ def usage_check():
     )
 
     threshold_pct = _get_budget_alert_threshold()
-    current_pct = (
-        round(summary["estimated_cost_usd_total"] / limit * 100, 1) if limit else None
-    )
+    if limit is None:
+        current_pct = None
+    elif limit > 0:
+        current_pct = round(summary["estimated_cost_usd_total"] / limit * 100, 1)
+    else:
+        # A $0 limit means "alert on any spend at all" rather than "no
+        # limit" — treat it as always at/over 100%, and never divide by it.
+        current_pct = 100.0 if summary["estimated_cost_usd_total"] > 0 else 0.0
     summary["budget_alert"] = {
         "threshold_pct": threshold_pct,
         "current_pct": current_pct,
@@ -362,11 +367,11 @@ def dropbox_pull():
         raise APIError("path is required", 400)
     access_token = _dropbox_access_token()
     try:
-        content = dropbox_client.download_file_text(access_token, path)
+        result = dropbox_client.download_file_text(access_token, path)
     except Exception as exc:  # noqa: BLE001
         logger.error("Dropbox download failed: %s", exc)
         raise APIError("Couldn't download that file from Dropbox.", 502)
-    return jsonify({"path": path, "content": content}), 200
+    return jsonify({"path": path, **result}), 200
 
 
 # ============================================
@@ -478,11 +483,11 @@ def github_pull():
         raise APIError("repo and path are required", 400)
     access_token = _github_access_token()
     try:
-        content = github_client.download_file_text(access_token, repo, path)
+        result = github_client.download_file_text(access_token, repo, path)
     except Exception as exc:  # noqa: BLE001
         logger.error("GitHub download failed: %s", exc)
         raise APIError("Couldn't download that file from GitHub.", 502)
-    return jsonify({"repo": repo, "path": path, "content": content}), 200
+    return jsonify({"repo": repo, "path": path, **result}), 200
 
 
 def _save_setting(key: str, raw_value: Any) -> str:
@@ -577,8 +582,10 @@ def reset_settings():
     """Advanced / Danger Zone: revert every setting to its schema default
     or env-var fallback, including every agent's Agent Defaults overrides
     and active Skill selections (all stored in the same `settings`
-    table). Does not touch the `skills` table itself or usage history —
-    see /api/usage/reset for that."""
+    table). Does not touch the `skills` table itself, usage history (see
+    /api/usage/reset for that), or Dropbox/GitHub OAuth state — those are
+    stored in the same table but deliberately preserved; see
+    DatabaseClient.reset_all_settings."""
     try:
         db_client.reset_all_settings()
     except Exception as exc:  # noqa: BLE001

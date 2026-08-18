@@ -185,7 +185,8 @@ hand. Real OAuth 2.0, not a placeholder:
 - **Browse** (`GET /api/connectors/dropbox/files?path=...`) lists one folder at a time — no
   local caching, no recursive crawl.
 - **Copy** (`POST /api/connectors/dropbox/pull`) downloads one file (capped at ~200KB / ~50k
-  tokens of text) and copies it to your clipboard — paste it into your message same as any
+  tokens of text — the response's `truncated` flag is set and the toast says so when a file
+  hit the cap) and copies it to your clipboard — paste it into your message same as any
   pasted text. Nothing gets fed into a prompt automatically.
 - **Disconnect** (`POST /api/connectors/dropbox/disconnect`) clears the stored refresh token.
 
