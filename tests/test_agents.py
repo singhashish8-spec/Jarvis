@@ -9,6 +9,7 @@ from src.agents.deployer_agent import DeployerAgent
 from src.agents.document_agent import DocumentAgent
 from src.agents.qa_agent import QAAgent
 from src.agents.tester_agent import TesterAgent
+from src.settings_schema import CHEAPER_MODEL
 
 
 def _run_result(output: str) -> dict:
@@ -59,6 +60,18 @@ def test_brainstorm_defaults_context_and_style(monkeypatch):
     assert result["output"]
 
 
+def test_brainstorm_records_actual_model_when_cheaper_override_applied(monkeypatch):
+    agent = BrainstormAgent()
+    agent.settings = {"model": CHEAPER_MODEL}
+    monkeypatch.setattr(
+        agent.replicate_client, "run", MagicMock(return_value=_run_result("ideas"))
+    )
+
+    agent.brainstorm(topic="test")
+
+    assert agent.model_name == CHEAPER_MODEL
+
+
 def test_brainstorm_propagates_replicate_errors(monkeypatch):
     agent = BrainstormAgent()
     monkeypatch.setattr(
@@ -87,6 +100,20 @@ def test_coder_agent_generates_code(monkeypatch):
     assert "def add" in result["output"]
     assert result["tech_stack"] == "Python"
     assert result["task_id"]
+
+
+def test_coder_records_actual_model_when_cheaper_override_applied(monkeypatch):
+    agent = CoderAgent()
+    agent.settings = {"model": CHEAPER_MODEL}
+    monkeypatch.setattr(
+        agent.replicate_client,
+        "run",
+        MagicMock(return_value=_run_result("def add(a, b):\n    return a + b")),
+    )
+
+    agent.generate_code(requirements="add two numbers", tech_stack="Python")
+
+    assert agent.model_name == CHEAPER_MODEL
 
 
 def test_tester_agent_writes_tests(monkeypatch):

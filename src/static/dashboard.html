@@ -1843,6 +1843,8 @@ function formatTokenCount(n) {
   return String(n);
 }
 
+let budgetAlertShown = false;
+
 async function loadUsage() {
   try {
     const res = await fetch("/api/usage");
@@ -1857,13 +1859,13 @@ async function loadUsage() {
     const bar = document.getElementById("usage-bar");
     const fill = document.getElementById("usage-bar-fill");
 
-    document.getElementById("usage-cost").textContent = limit
+    document.getElementById("usage-cost").textContent = limit !== null
       ? "$" + spent.toFixed(4) + " / $" + limit.toFixed(2)
       : "$" + spent.toFixed(4);
 
-    if (limit) {
+    if (limit !== null) {
       bar.style.display = "block";
-      const pct = Math.min(100, (spent / limit) * 100);
+      const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 100;
       fill.style.width = pct + "%";
       fill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
     } else {
@@ -1872,6 +1874,12 @@ async function loadUsage() {
 
     document.getElementById("usage-widget").title =
       (body.cost_note || "") + " Click for a full breakdown.";
+
+    const overBudget = body.budget_alert && body.budget_alert.triggered;
+    if (overBudget && !budgetAlertShown) {
+      showToast("⚠ Over your budget alert threshold");
+    }
+    budgetAlertShown = overBudget;
   } catch (err) {
     // best-effort UI polish only
   }
@@ -2172,7 +2180,8 @@ async function loadUsageBillingLive() {
   try {
     const res = await fetch("/api/usage");
     const body = await res.json();
-    const limitText = body.credit_limit_usd ? `<small> / $${body.credit_limit_usd.toFixed(2)}</small>` : "";
+    const hasLimit = body.credit_limit_usd !== null && body.credit_limit_usd !== undefined;
+    const limitText = hasLimit ? `<small> / $${body.credit_limit_usd.toFixed(2)}</small>` : "";
     const overBudget = body.budget_alert && body.budget_alert.triggered;
     el.innerHTML = `
       <div class="settings-field-label"><span>Current usage (live)</span></div>
@@ -3147,7 +3156,8 @@ function renderDangerZoneCategory(content) {
       <div class="info-note" id="note-reset_settings">
         Reverts every setting on this page — including Agent Defaults overrides and active
         Skill selections — back to its default or env-var fallback. Does not delete Skills
-        themselves, or any chat/task history. Costs nothing; no model call involved.
+        themselves, any chat/task history, or your Dropbox/GitHub connections (disconnect
+        those separately). Costs nothing; no model call involved.
       </div>
       <button class="settings-btn danger" id="reset-settings-btn">Reset all settings</button>
     </div>
@@ -3165,7 +3175,7 @@ function renderDangerZoneCategory(content) {
   content.querySelector("#reset-settings-info-btn").addEventListener("click", () => toggleInfoNote("reset_settings"));
   content.querySelector("#reset-usage-info-btn").addEventListener("click", () => toggleInfoNote("reset_usage"));
   content.querySelector("#reset-settings-btn").addEventListener("click", async () => {
-    if (!confirm("Reset ALL settings to defaults? This can't be undone.")) return;
+    if (!confirm("Reset ALL settings to defaults? This can't be undone. (Dropbox/GitHub connections are kept — disconnect them separately.)")) return;
     await fetch("/api/settings/reset", { method: "POST" });
     showToast("Settings reset.");
     await loadSettingsSchema();
@@ -3241,15 +3251,15 @@ async function loadUsagePopover() {
 
     renderAgentSpendBreakdown(usage.by_agent);
 
-    const limit = usage.credit_limit_usd;
+    const limit = usage.credit_limit_usd !== null && usage.credit_limit_usd !== undefined ? usage.credit_limit_usd : null;
     const spent = usage.estimated_cost_usd_total || 0;
     const creditBar = document.getElementById("popover-credit-bar");
     const creditFill = document.getElementById("popover-credit-fill");
-    if (limit) {
+    if (limit !== null) {
       document.getElementById("popover-credit-text").textContent =
         "$" + spent.toFixed(4) + " / $" + limit.toFixed(2);
       creditBar.style.display = "block";
-      const pct = Math.min(100, (spent / limit) * 100);
+      const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 100;
       creditFill.style.width = pct + "%";
       creditFill.className = "usage-bar-fill" + (pct >= 100 ? " over" : pct >= 80 ? " warn" : "");
     } else {

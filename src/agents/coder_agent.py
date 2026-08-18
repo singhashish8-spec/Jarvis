@@ -68,6 +68,7 @@ class CoderAgent(BaseAgent):
             model, version = resolve_model_and_version(
                 self.settings, MODEL, MODEL_VERSION
             )
+            self.model_name = model
             run_result = self.replicate_client.run(
                 model,
                 {

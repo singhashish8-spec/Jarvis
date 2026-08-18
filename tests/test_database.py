@@ -279,13 +279,22 @@ def test_reset_usage_raises_on_error():
         db.reset_usage()
 
 
-def test_reset_all_settings_deletes_all_rows():
+def test_reset_all_settings_deletes_rows_except_connector_tokens():
     db, mock_supabase = _client_with_mocked_supabase()
-    mock_supabase.table.return_value.delete.return_value.neq.return_value.execute.return_value = (
+    mock_supabase.table.return_value.delete.return_value.not_.in_.return_value.execute.return_value = (
         MagicMock()
     )
     db.reset_all_settings()
     mock_supabase.table.assert_called_with("settings")
+    mock_supabase.table.return_value.delete.return_value.not_.in_.assert_called_with(
+        "key",
+        [
+            "dropbox_refresh_token",
+            "dropbox_account_email",
+            "github_access_token",
+            "github_account_login",
+        ],
+    )
 
 
 def test_list_skills_filters_by_agent_type():

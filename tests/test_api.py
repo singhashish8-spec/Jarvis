@@ -65,6 +65,44 @@ def test_usage_endpoint_computes_remaining_when_limit_set(client, monkeypatch):
     assert data["credit_remaining_usd"] == 10.0 - data["estimated_cost_usd_total"]
 
 
+def test_usage_endpoint_zero_credit_limit_does_not_crash_and_shows_bar(client, monkeypatch):
+    from src.config import config
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 0.0)
+    response = client.get("/api/usage")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["credit_limit_usd"] == 0.0
+    assert data["credit_remaining_usd"] == -data["estimated_cost_usd_total"]
+    assert data["budget_alert"]["current_pct"] == (
+        100.0 if data["estimated_cost_usd_total"] > 0 else 0.0
+    )
+
+
+def test_usage_endpoint_zero_credit_limit_triggers_alert_on_any_spend(client, monkeypatch):
+    from src.config import config
+    from src.main import db_client
+
+    monkeypatch.setattr(config, "REPLICATE_CREDIT_LIMIT_USD", 0.0)
+    monkeypatch.setattr(
+        db_client,
+        "get_usage_summary",
+        lambda: {
+            "tokens_used_today": 10,
+            "tokens_used_total": 10,
+            "estimated_cost_usd_total": 0.01,
+        },
+    )
+    client.post(
+        "/api/settings",
+        data=json.dumps({"budget_alert_threshold_pct": 50}),
+        content_type="application/json",
+    )
+    data = json.loads(client.get("/api/usage").data)
+    assert data["budget_alert"]["current_pct"] == 100.0
+    assert data["budget_alert"]["triggered"] is True
+
+
 def test_usage_endpoint_includes_by_agent_breakdown(client, monkeypatch):
     from src.main import db_client
 

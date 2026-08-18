@@ -320,11 +320,26 @@ class DatabaseClient:
             "id", "00000000-0000-0000-0000-000000000000"
         ).execute()
 
+    # Keys that store Dropbox/GitHub OAuth state (tokens + cached account
+    # info) in the same `settings` table as generic settings, deliberately
+    # outside SETTINGS_SCHEMA — see main.py's connector routes. Reset
+    # should not silently disconnect a user's connectors.
+    _CONNECTOR_SETTING_KEYS = (
+        "dropbox_refresh_token",
+        "dropbox_account_email",
+        "github_access_token",
+        "github_account_login",
+    )
+
     def reset_all_settings(self) -> None:
-        """Delete every row from the `settings` table, reverting every
-        dashboard-configured setting back to its schema default (or its
-        env-var fallback, for credit_limit_usd/gpu_rate_per_second_usd)."""
-        self.client.table("settings").delete().neq("key", "__never_matches__").execute()
+        """Delete every row from the `settings` table except connector
+        OAuth state, reverting every dashboard-configured setting back to
+        its schema default (or its env-var fallback, for
+        credit_limit_usd/gpu_rate_per_second_usd). Dropbox/GitHub stay
+        connected — disconnecting them is a separate, explicit action."""
+        self.client.table("settings").delete().not_.in_(
+            "key", list(self._CONNECTOR_SETTING_KEYS)
+        ).execute()
 
     def list_skills(self, agent_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """List skills (prompt-template overrides), optionally filtered to

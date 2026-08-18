@@ -209,9 +209,14 @@ def usage_check():
     )
 
     threshold_pct = _get_budget_alert_threshold()
-    current_pct = (
-        round(summary["estimated_cost_usd_total"] / limit * 100, 1) if limit else None
-    )
+    if limit is None:
+        current_pct = None
+    elif limit > 0:
+        current_pct = round(summary["estimated_cost_usd_total"] / limit * 100, 1)
+    else:
+        # A $0 limit means "alert on any spend at all" rather than "no
+        # limit" — treat it as always at/over 100%, and never divide by it.
+        current_pct = 100.0 if summary["estimated_cost_usd_total"] > 0 else 0.0
     summary["budget_alert"] = {
         "threshold_pct": threshold_pct,
         "current_pct": current_pct,
@@ -577,8 +582,10 @@ def reset_settings():
     """Advanced / Danger Zone: revert every setting to its schema default
     or env-var fallback, including every agent's Agent Defaults overrides
     and active Skill selections (all stored in the same `settings`
-    table). Does not touch the `skills` table itself or usage history —
-    see /api/usage/reset for that."""
+    table). Does not touch the `skills` table itself, usage history (see
+    /api/usage/reset for that), or Dropbox/GitHub OAuth state — those are
+    stored in the same table but deliberately preserved; see
+    DatabaseClient.reset_all_settings."""
     try:
         db_client.reset_all_settings()
     except Exception as exc:  # noqa: BLE001
