@@ -35,6 +35,12 @@
     --shadow-1: 0 1px 2px rgba(0,0,0,.35);
     --shadow-2: 0 8px 28px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.35);
     --overlay-bg: rgba(32,32,32,.72);
+    --glass-bg: rgba(255,255,255,.05);
+    --glass-bg-strong: rgba(255,255,255,.09);
+    --glass-highlight: rgba(255,255,255,.10);
+    --glass-shine: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 60%);
+    --depth-1: inset 0 1px 0 var(--glass-highlight), 0 1px 3px rgba(0,0,0,.4);
+    --depth-active: inset 0 1px 0 var(--glass-highlight), inset 3px 0 0 var(--accent), 0 2px 8px rgba(0,0,0,.4);
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -72,6 +78,12 @@
     --shadow-1: 0 1px 2px rgba(0,0,0,.08);
     --shadow-2: 0 8px 24px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.08);
     --overlay-bg: rgba(255,255,255,.72);
+    --glass-bg: rgba(255,255,255,.55);
+    --glass-bg-strong: rgba(255,255,255,.8);
+    --glass-highlight: rgba(255,255,255,.9);
+    --glass-shine: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,0) 60%);
+    --depth-1: inset 0 1px 0 var(--glass-highlight), 0 1px 3px rgba(0,0,0,.1);
+    --depth-active: inset 0 1px 0 var(--glass-highlight), inset 3px 0 0 var(--accent), 0 2px 8px rgba(0,0,0,.1);
 
     --sd-bg: var(--main-bg);
     --sd-surface: var(--surface);
@@ -187,10 +199,15 @@
     font-size: 13px;
     color: var(--text-dim);
     position: relative;
-    transition: background .1s ease;
+    transition: background .12s ease, box-shadow .12s ease;
   }
-  .chat-item:hover { background: var(--surface); }
-  .chat-item.active { background: var(--surface-2); color: var(--text); }
+  .chat-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); }
+  .chat-item.active {
+    background: var(--surface-2);
+    background-image: var(--glass-shine);
+    color: var(--text);
+    box-shadow: var(--depth-active);
+  }
   .chat-icon { flex-shrink: 0; font-size: 14px; }
   .chat-title {
     flex: 1;
@@ -276,6 +293,7 @@
     right: 8px;
     margin-bottom: 6px;
     background: var(--overlay-bg);
+    background-image: var(--glass-shine);
     backdrop-filter: blur(24px) saturate(1.3);
     -webkit-backdrop-filter: blur(24px) saturate(1.3);
     border: 1px solid var(--border-soft);
@@ -374,16 +392,36 @@
     max-width: 180px;
     padding: 7px 8px 7px 12px;
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    background: var(--sidebar-bg);
+    background: var(--glass-bg);
+    background-image: var(--glass-shine);
+    backdrop-filter: blur(16px) saturate(1.3);
+    -webkit-backdrop-filter: blur(16px) saturate(1.3);
     border: 1px solid var(--border-soft);
     border-bottom: none;
     color: var(--text-dim);
     font-size: 13px;
     cursor: pointer;
+    position: relative;
+    box-shadow: var(--depth-1);
+    transition: background .12s ease, box-shadow .12s ease;
   }
+  .tab-chip:hover { background: var(--glass-bg-strong); }
   .tab-chip.active {
     background: var(--main-bg);
+    background-image: none;
     color: var(--text);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+  }
+  .tab-chip.active::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -2px;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 3px;
+    border-radius: 3px;
+    background: var(--accent);
   }
   .tab-chip .tab-icon { flex-shrink: 0; font-size: 13px; }
   .tab-chip .tab-title {
@@ -470,6 +508,7 @@
     top: 48px;
     left: 10px;
     background: var(--overlay-bg);
+    background-image: var(--glass-shine);
     backdrop-filter: blur(24px) saturate(1.3);
     -webkit-backdrop-filter: blur(24px) saturate(1.3);
     border: 1px solid var(--border-soft);
@@ -488,10 +527,14 @@
     padding: 9px 10px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: background .1s ease;
+    transition: background .12s ease, box-shadow .12s ease;
   }
-  .agent-option:hover { background: var(--surface-2); }
-  .agent-option.active { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+  .agent-option:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); }
+  .agent-option.active {
+    background: var(--surface-2);
+    background-image: var(--glass-shine);
+    box-shadow: var(--depth-active);
+  }
   .agent-option .icon { font-size: 18px; margin-top: 1px; }
   .agent-option .name { font-size: 14px; font-weight: 600; }
   .agent-option .desc { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
@@ -731,6 +774,7 @@
   .modal-backdrop.show { display: flex; }
   .modal {
     background: var(--overlay-bg);
+    background-image: var(--glass-shine);
     backdrop-filter: blur(28px) saturate(1.3);
     -webkit-backdrop-filter: blur(28px) saturate(1.3);
     border: 1px solid var(--border-soft);
@@ -830,6 +874,7 @@
   .settings-backdrop.show { display: flex; }
   .settings-modal {
     background: var(--overlay-bg);
+    background-image: var(--glass-shine);
     backdrop-filter: blur(32px) saturate(1.4);
     -webkit-backdrop-filter: blur(32px) saturate(1.4);
     border: 1px solid var(--border-soft);
@@ -953,15 +998,16 @@
     cursor: pointer;
     white-space: nowrap;
     position: relative;
-    transition: background .1s ease;
+    transition: background .12s ease, box-shadow .12s ease;
   }
   .settings-nav-item .nav-icon { font-size: 15px; flex-shrink: 0; }
-  .settings-nav-item:hover { background: var(--sd-surface); color: var(--sd-text); }
+  .settings-nav-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); color: var(--sd-text); }
   .settings-nav-item.active {
     background: var(--sd-surface-2);
+    background-image: var(--glass-shine);
     color: var(--sd-text);
     font-weight: 600;
-    box-shadow: inset 3px 0 0 var(--sd-accent);
+    box-shadow: var(--depth-active);
   }
   .settings-content {
     flex: 1;
@@ -976,10 +1022,12 @@
   }
   .settings-field {
     background: var(--sd-surface);
+    background-image: var(--glass-shine);
     border: 1px solid var(--sd-border);
     border-radius: var(--radius-md);
     padding: 14px 16px;
     margin-bottom: 8px;
+    box-shadow: var(--shadow-1);
   }
   .settings-field-label {
     display: flex;
@@ -1106,6 +1154,8 @@
     border-radius: var(--radius-md);
     margin-bottom: 8px;
     background: var(--sd-surface);
+    background-image: var(--glass-shine);
+    box-shadow: var(--shadow-1);
   }
   .connector-card .icon { font-size: 18px; }
   .connector-card .name { font-size: 12.5px; font-weight: 600; }
@@ -1126,6 +1176,8 @@
     padding: 9px 11px;
     margin-bottom: 8px;
     background: var(--sd-surface);
+    background-image: var(--glass-shine);
+    box-shadow: var(--shadow-1);
   }
   .skill-item-header { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
   .skill-item-header .name { font-weight: 600; flex: 1; }
@@ -1187,6 +1239,7 @@
     left: 50%;
     transform: translateX(-50%) translateY(10px);
     background: var(--overlay-bg);
+    background-image: var(--glass-shine);
     backdrop-filter: blur(24px) saturate(1.3);
     -webkit-backdrop-filter: blur(24px) saturate(1.3);
     border: 1px solid var(--border-soft);
