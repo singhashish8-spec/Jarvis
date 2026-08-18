@@ -21,12 +21,21 @@ class DatabaseClient:
     def __init__(self):
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_KEY")
+        self.client: Optional[Client] = None
 
         if not url or not key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY are required")
+            logger.error(
+                "SUPABASE_URL and SUPABASE_KEY are required — every method "
+                "below already degrades gracefully when self.client is "
+                "unset, same as when Supabase itself is unreachable"
+            )
+            return
 
-        self.client: Client = create_client(url, key)
-        logger.info("Database client initialized")
+        try:
+            self.client = create_client(url, key)
+            logger.info("Database client initialized")
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to create Supabase client: %s", exc)
 
     def health_check(self) -> bool:
         """True if the `tasks` table is reachable."""

@@ -16,11 +16,33 @@ def _client_with_mocked_supabase():
         return db, mock_supabase
 
 
-def test_missing_credentials_raise(monkeypatch):
+def test_missing_credentials_degrades_instead_of_raising(monkeypatch):
+    # Previously raised, which took the whole Flask app down at import time
+    # (see main.py's _init_client) — a missing/bad Supabase credential
+    # should disable DB-backed features, not the entire app, including
+    # routes (the dashboard, /health) that never touch the database.
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
-    with pytest.raises(ValueError):
-        DatabaseClient()
+    db = DatabaseClient()
+    assert db.client is None
+    # And every read method already degrades gracefully when self.client
+    # is None, the same way it degrades for any other Supabase failure.
+    assert db.get_setting("credit_limit_usd") is None
+    assert db.health_check() is False
+
+
+def test_invalid_credentials_degrade_instead_of_raising(monkeypatch):
+    # Present but rejected by Supabase (e.g. a malformed key) — same
+    # degrade-don't-crash contract as the missing-credentials case above.
+    monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "not-a-valid-key")
+    with patch(
+        "src.database.client.create_client",
+        side_effect=Exception("Invalid API key"),
+    ):
+        db = DatabaseClient()
+    assert db.client is None
+    assert db.get_setting("credit_limit_usd") is None
 
 
 def test_health_check_true_on_success():

@@ -24,22 +24,30 @@ class R2Client:
         secret_key = os.getenv("CLOUDFLARE_R2_SECRET_KEY")
         endpoint = os.getenv("CLOUDFLARE_R2_ENDPOINT")
         self.bucket_name = os.getenv("CLOUDFLARE_R2_BUCKET_NAME", "jarvis-data")
+        self.client = None
 
         if not account_id or not access_key or not secret_key:
-            raise ValueError(
+            logger.error(
                 "CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCESS_KEY and "
-                "CLOUDFLARE_R2_SECRET_KEY are required"
+                "CLOUDFLARE_R2_SECRET_KEY are required — every method below "
+                "already degrades gracefully when self.client is unset, "
+                "same as when R2 itself is unreachable"
             )
+            return
 
-        self.client = boto3.client(
-            "s3",
-            endpoint_url=endpoint or f"https://{account_id}.r2.cloudflarestorage.com",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            config=BotoConfig(signature_version="s3v4"),
-            region_name="auto",
-        )
-        logger.info("R2 storage client initialized (bucket=%s)", self.bucket_name)
+        try:
+            self.client = boto3.client(
+                "s3",
+                endpoint_url=endpoint
+                or f"https://{account_id}.r2.cloudflarestorage.com",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=BotoConfig(signature_version="s3v4"),
+                region_name="auto",
+            )
+            logger.info("R2 storage client initialized (bucket=%s)", self.bucket_name)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to create R2 client: %s", exc)
 
     def health_check(self) -> bool:
         """True if the configured bucket is reachable."""
