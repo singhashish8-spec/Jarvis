@@ -52,21 +52,38 @@ CORS(app, origins=config.CORS_ORIGINS)
 
 logger = setup_logger(__name__)
 
-try:
-    db_client = DatabaseClient()
-    r2_client = R2Client()
-    dropbox_client = DropboxClient()
-    github_client = GitHubClient()
-    brainstorm_agent = BrainstormAgent()
-    coder_agent = CoderAgent()
-    tester_agent = TesterAgent()
-    deployer_agent = DeployerAgent()
-    document_agent = DocumentAgent()
-    qa_agent = QAAgent()
-    logger.info("All clients initialized successfully")
-except Exception as exc:
-    logger.error("Failed to initialize clients: %s", exc)
-    raise
+
+def _init_client(factory, name):
+    """Construct one client/agent, degrading to None on failure instead of
+    taking the whole app down. A bad or missing credential for one service
+    (e.g. R2) shouldn't make routes that don't need it (the dashboard,
+    /health, other agents) unreachable too — see config.validate_config's
+    docstring, which already documents this as the intended boot behavior;
+    this block previously contradicted it by re-raising."""
+    try:
+        client = factory()
+        logger.info("%s initialized", name)
+        return client
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Failed to initialize %s: %s — routes needing it will return a "
+            "clean error instead of crashing the app",
+            name,
+            exc,
+        )
+        return None
+
+
+db_client = _init_client(DatabaseClient, "DatabaseClient")
+r2_client = _init_client(R2Client, "R2Client")
+dropbox_client = _init_client(DropboxClient, "DropboxClient")
+github_client = _init_client(GitHubClient, "GitHubClient")
+brainstorm_agent = _init_client(BrainstormAgent, "BrainstormAgent")
+coder_agent = _init_client(CoderAgent, "CoderAgent")
+tester_agent = _init_client(TesterAgent, "TesterAgent")
+deployer_agent = _init_client(DeployerAgent, "DeployerAgent")
+document_agent = _init_client(DocumentAgent, "DocumentAgent")
+qa_agent = _init_client(QAAgent, "QAAgent")
 
 AGENTS_BY_TYPE: Dict[str, BaseAgent] = {
     "brainstorm": brainstorm_agent,
@@ -122,17 +139,20 @@ def status_check():
     }
 
     checks = {
-        "database": db_client.health_check,
-        "replicate": brainstorm_agent.verify_api_key,
-        "storage": r2_client.health_check,
+        "database": db_client.health_check if db_client else None,
+        "replicate": brainstorm_agent.verify_api_key if brainstorm_agent else None,
+        "storage": r2_client.health_check if r2_client else None,
     }
 
     for name, check in checks.items():
-        try:
-            healthy = check()
-        except Exception as exc:  # noqa: BLE001
+        if check is None:
             healthy = False
-            logger.error("%s health check raised: %s", name, exc)
+        else:
+            try:
+                healthy = check()
+            except Exception as exc:  # noqa: BLE001
+                healthy = False
+                logger.error("%s health check raised: %s", name, exc)
 
         status["components"][name] = "healthy" if healthy else "unavailable"
         if not healthy:

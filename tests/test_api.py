@@ -34,6 +34,46 @@ def test_status_endpoint(client):
     }
 
 
+def test_status_endpoint_degrades_cleanly_when_a_client_failed_to_init(
+    client, monkeypatch
+):
+    # Simulates a client that failed construction at boot (see _init_client
+    # in main.py) — /status should report it "unavailable", not 500.
+    monkeypatch.setattr("src.main.db_client", None)
+    response = client.get("/status")
+    assert response.status_code == 503
+    data = json.loads(response.data)
+    assert data["status"] == "degraded"
+    assert data["components"]["database"] == "unavailable"
+
+
+def test_dashboard_and_health_survive_a_client_that_failed_to_init(client, monkeypatch):
+    # The whole point of _init_client degrading to None instead of
+    # re-raising: routes that don't touch the broken client (the static
+    # dashboard, /health) must keep working even when db_client/r2_client
+    # couldn't be constructed (e.g. a bad credential on deploy).
+    monkeypatch.setattr("src.main.db_client", None)
+    monkeypatch.setattr("src.main.r2_client", None)
+    assert client.get("/").status_code == 200
+    assert client.get("/health").status_code == 200
+
+
+def test_init_client_returns_the_instance_on_success():
+    from src.main import _init_client
+
+    sentinel = object()
+    assert _init_client(lambda: sentinel, "Sentinel") is sentinel
+
+
+def test_init_client_degrades_to_none_instead_of_raising():
+    from src.main import _init_client
+
+    def broken():
+        raise ValueError("bad credential")
+
+    assert _init_client(broken, "Broken") is None
+
+
 def test_usage_endpoint(client):
     response = client.get("/api/usage")
     assert response.status_code == 200
