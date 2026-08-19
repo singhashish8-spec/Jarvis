@@ -114,7 +114,10 @@
     --accent-text-on: #17161f;
     --active-bg: #2c2c3c;
     --wash: transparent;
-    --shadow-1: 0 1px 2px rgba(0,0,0,.35);
+    /* A soft inset top-highlight (bevel) plus a real ambient shadow — gives
+       cards actual lift on a near-black background without any blur/glass.
+       A flat `0 1px 2px` shadow reads as almost nothing at this darkness. */
+    --shadow-1: 0 1px 0 rgba(255,255,255,.05) inset, 0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.28);
     --shadow-2: 0 8px 28px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.35);
     --overlay-bg: rgba(28,27,24,.94);
     /* Calm Neutral uses plain solid surfaces, not acrylic/glass — these
@@ -125,7 +128,7 @@
     --glass-highlight: transparent;
     --glass-shine: none;
     --depth-1: var(--shadow-1);
-    --depth-active: var(--shadow-1);
+    --depth-active: 0 1px 0 rgba(255,255,255,.07) inset, 0 2px 4px rgba(0,0,0,.4), 0 10px 24px rgba(0,0,0,.35);
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -162,7 +165,7 @@
     --accent-text-on: #ffffff;
     --active-bg: #e9eaf7;
     --wash: transparent;
-    --shadow-1: 0 1px 2px rgba(30,28,22,.06);
+    --shadow-1: 0 1px 0 rgba(255,255,255,.8) inset, 0 1px 2px rgba(30,28,22,.08), 0 6px 16px rgba(30,28,22,.05);
     --shadow-2: 0 8px 24px rgba(30,28,22,.1), 0 2px 8px rgba(30,28,22,.06);
     --overlay-bg: rgba(255,255,255,.94);
     --glass-bg: var(--surface);
@@ -170,7 +173,7 @@
     --glass-highlight: transparent;
     --glass-shine: none;
     --depth-1: var(--shadow-1);
-    --depth-active: var(--shadow-1);
+    --depth-active: 0 1px 0 rgba(255,255,255,.9) inset, 0 2px 4px rgba(30,28,22,.08), 0 10px 22px rgba(30,28,22,.08);
 
     --sd-bg: var(--main-bg);
     --sd-surface: var(--surface);
