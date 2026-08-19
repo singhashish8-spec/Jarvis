@@ -114,7 +114,10 @@
     --accent-text-on: #17161f;
     --active-bg: #2c2c3c;
     --wash: transparent;
-    --shadow-1: 0 1px 2px rgba(0,0,0,.35);
+    /* A soft inset top-highlight (bevel) plus a real ambient shadow — gives
+       cards actual lift on a near-black background without any blur/glass.
+       A flat `0 1px 2px` shadow reads as almost nothing at this darkness. */
+    --shadow-1: 0 1px 0 rgba(255,255,255,.05) inset, 0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.28);
     --shadow-2: 0 8px 28px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.35);
     --overlay-bg: rgba(28,27,24,.94);
     /* Calm Neutral uses plain solid surfaces, not acrylic/glass — these
@@ -125,7 +128,7 @@
     --glass-highlight: transparent;
     --glass-shine: none;
     --depth-1: var(--shadow-1);
-    --depth-active: var(--shadow-1);
+    --depth-active: 0 1px 0 rgba(255,255,255,.07) inset, 0 2px 4px rgba(0,0,0,.4), 0 10px 24px rgba(0,0,0,.35);
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -162,7 +165,7 @@
     --accent-text-on: #ffffff;
     --active-bg: #e9eaf7;
     --wash: transparent;
-    --shadow-1: 0 1px 2px rgba(30,28,22,.06);
+    --shadow-1: 0 1px 0 rgba(255,255,255,.8) inset, 0 1px 2px rgba(30,28,22,.08), 0 6px 16px rgba(30,28,22,.05);
     --shadow-2: 0 8px 24px rgba(30,28,22,.1), 0 2px 8px rgba(30,28,22,.06);
     --overlay-bg: rgba(255,255,255,.94);
     --glass-bg: var(--surface);
@@ -170,7 +173,7 @@
     --glass-highlight: transparent;
     --glass-shine: none;
     --depth-1: var(--shadow-1);
-    --depth-active: var(--shadow-1);
+    --depth-active: 0 1px 0 rgba(255,255,255,.9) inset, 0 2px 4px rgba(30,28,22,.08), 0 10px 22px rgba(30,28,22,.08);
 
     --sd-bg: var(--main-bg);
     --sd-surface: var(--surface);
@@ -1053,52 +1056,74 @@
   @media (min-width: 640px) {
     .settings-body { flex-direction: row; }
   }
+  /* Grouped list: a section label above a rounded card of rows, each row
+     an icon + label + trailing chevron — the pattern most people already
+     know from Settings on their phone/every major chat app, instead of a
+     grid of same-weight chips with no hierarchy between them. */
   .settings-nav {
     flex-shrink: 0;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    overflow-y: auto;
     border-bottom: 1px solid var(--sd-border);
-    padding: 8px;
-    gap: 6px;
+    padding: 12px;
+    gap: 16px;
   }
   @media (min-width: 640px) {
     .settings-nav {
-      flex-direction: column;
-      width: 232px;
-      overflow-x: visible;
-      overflow-y: auto;
+      width: 248px;
       border-bottom: none;
       border-right: 1px solid var(--sd-border);
-      padding: 12px 10px;
-      gap: 1px;
+      padding: 14px 12px;
     }
   }
+  .settings-nav-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--sd-dimmer);
+    padding: 0 6px 6px;
+  }
+  .settings-nav-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--sd-surface);
+    background-image: var(--glass-shine);
+    border: 1px solid var(--sd-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+  }
   .settings-nav-item {
-    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     text-align: left;
-    padding: 8px 12px;
-    border-radius: var(--radius-md);
+    padding: 10px 12px;
     background: none;
-    border: 1px solid transparent;
+    border: none;
+    border-bottom: 1px solid var(--sd-border);
     color: var(--sd-dim);
     font-size: 13px;
     cursor: pointer;
-    white-space: nowrap;
     position: relative;
-    transition: background .12s ease, box-shadow .12s ease;
+    transition: background .12s ease, box-shadow .12s ease, color .12s ease;
   }
-  @media (max-width: 639px) {
-    /* Below the point where the nav becomes a vertical rail, it wraps
-       onto multiple lines instead of scrolling sideways — every category
-       should be visible without having to discover a horizontal
-       scrollbar first. A visible border tells wrapped chips apart from
-       each other now that they're not in one continuous row. */
-    .settings-nav-item { border-color: var(--sd-border); font-size: 12.5px; padding: 7px 10px; }
+  .settings-nav-card .settings-nav-item:last-child { border-bottom: none; }
+  .settings-nav-item .nav-icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+    background: var(--sd-surface-2);
   }
-  .settings-nav-item .nav-icon { font-size: 15px; flex-shrink: 0; }
+  .settings-nav-item .nav-label { flex: 1; }
+  .settings-nav-item .nav-chevron { flex-shrink: 0; color: var(--sd-dimmer); font-size: 15px; }
   .settings-nav-item:hover { background: var(--glass-bg-strong); background-image: var(--glass-shine); color: var(--sd-text); }
   .settings-nav-item.active {
     background: var(--active-bg);
@@ -1106,6 +1131,13 @@
     color: var(--sd-text);
     font-weight: 600;
     box-shadow: var(--depth-active);
+  }
+  .settings-nav-group.danger .settings-nav-group-label,
+  .settings-nav-group.danger .settings-nav-item { color: var(--sd-warn); }
+  .settings-nav-loading {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: var(--sd-dimmer);
   }
   .settings-content {
     flex: 1;
@@ -2356,6 +2388,11 @@ function fieldsFor(categoryId) {
 async function openSettings(category) {
   document.getElementById("settings-backdrop").classList.add("show");
   if (!settingsState.settings.length) {
+    // A cold Vercel function + cold Supabase connection can take several
+    // seconds on the very first request — without this, the nav area (no
+    // spinner, no skeleton) just looked broken/empty for that whole stretch.
+    document.getElementById("settings-nav").innerHTML =
+      '<div class="settings-nav-loading">Loading settings…</div>';
     await loadSettingsSchema();
   }
   renderSettingsNav();
@@ -2418,16 +2455,58 @@ const SETTINGS_NAV_ICONS = {
   danger_zone: "⚠️",
 };
 
+// Groups categories under a section label — same "Account / Personalization
+// / ..." grouped-list shape as Settings on most phones and every major
+// chat app, instead of one flat grid of same-weight chips.
+const SETTINGS_NAV_GROUPS = [
+  { label: "Account", ids: ["usage_billing"] },
+  { label: "Personalization", ids: ["appearance", "personalization"] },
+  { label: "Agents", ids: ["agent_defaults", "rate_limiting"] },
+  { label: "Integrations", ids: ["connectors", "webhooks", "skills"] },
+  { label: "Data", ids: ["data_controls"] },
+  { label: "System", ids: ["system_status"] },
+  { label: "Danger Zone", ids: ["danger_zone"], danger: true },
+];
+
 function renderSettingsNav() {
   const nav = document.getElementById("settings-nav");
   nav.innerHTML = "";
-  settingsState.categories.forEach((cat) => {
-    const btn = document.createElement("button");
-    btn.className = "settings-nav-item" + (cat.id === settingsState.activeCategory ? " active" : "");
-    const icon = SETTINGS_NAV_ICONS[cat.id] || "⚙️";
-    btn.innerHTML = `<span class="nav-icon">${icon}</span><span>${escapeHtml(cat.label)}</span>`;
-    btn.addEventListener("click", () => selectSettingsCategory(cat.id));
-    nav.appendChild(btn);
+  const byId = {};
+  settingsState.categories.forEach((cat) => { byId[cat.id] = cat; });
+  const used = new Set();
+  const groups = [];
+  SETTINGS_NAV_GROUPS.forEach((g) => {
+    const cats = g.ids.map((id) => byId[id]).filter(Boolean);
+    cats.forEach((c) => used.add(c.id));
+    if (cats.length) groups.push({ label: g.label, danger: g.danger, cats });
+  });
+  // Any category the backend adds that isn't in a group above still shows
+  // up, rather than silently disappearing from the nav.
+  const leftover = settingsState.categories.filter((c) => !used.has(c.id));
+  if (leftover.length) groups.push({ label: "Other", cats: leftover });
+
+  groups.forEach((g) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "settings-nav-group" + (g.danger ? " danger" : "");
+    const labelEl = document.createElement("div");
+    labelEl.className = "settings-nav-group-label";
+    labelEl.textContent = g.label;
+    groupEl.appendChild(labelEl);
+    const card = document.createElement("div");
+    card.className = "settings-nav-card";
+    g.cats.forEach((cat) => {
+      const btn = document.createElement("button");
+      btn.className = "settings-nav-item" + (cat.id === settingsState.activeCategory ? " active" : "");
+      const icon = SETTINGS_NAV_ICONS[cat.id] || "⚙️";
+      btn.innerHTML =
+        `<span class="nav-icon">${icon}</span>` +
+        `<span class="nav-label">${escapeHtml(cat.label)}</span>` +
+        `<span class="nav-chevron">›</span>`;
+      btn.addEventListener("click", () => selectSettingsCategory(cat.id));
+      card.appendChild(btn);
+    });
+    groupEl.appendChild(card);
+    nav.appendChild(groupEl);
   });
 }
 
