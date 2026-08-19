@@ -14,10 +14,10 @@
                                     |
                                     v
                       +---------------------------+
-                      |  BrainstormAgent            |
-                      |  (src/agents/)               |
-                      |  Phase 0: mock data          |
-                      |  Phase 1: calls Replicate     |
+                      |  Brainstorm / Coder / Tester |
+                      |  Deployer / Document / QA    |
+                      |  (src/agents/) — all live,    |
+                      |  calling real Replicate models|
                       +------+----------------+------+
                              |                  |
                              v                  v
@@ -35,12 +35,10 @@
   how an agent works internally — that's the agent's job.
 
 - **`src/agents/`** — `BaseAgent` defines the shared lifecycle (create a
-  task, mark it complete/failed) so every future agent (Coder, Tester,
-  Deployer) tracks its work the same way. `BrainstormAgent` is the first
-  concrete agent; in Phase 0 it returns realistic example data so the rest
-  of the system (API, database, storage) can be built and tested without
-  spending anything on the Replicate API. Phase 1 flips one method
-  (`brainstorm()`) to call the real model instead.
+  task, mark it complete/failed) so all six agents (Brainstorm, Coder,
+  Tester, Deployer, Document, QA) track their work the same way. Each is a
+  thin subclass that calls a specific Replicate model — see
+  [AGENTS.md](AGENTS.md) for which model each one uses and why.
 
 - **`src/database/`** wraps Supabase so the rest of the app calls
   `db_client.save_task(...)` instead of writing raw Supabase queries
@@ -53,6 +51,23 @@
   `/api/agents/brainstorm` still returns a result to the caller — it logs
   the failure instead of blocking the response. A brainstorm result you
   can't save is still more useful than an error.
+
+- **Startup never crashes the process, even with missing/bad credentials.**
+  `main.py` builds every client/agent through a small `_init_client()`
+  helper that catches a constructor failure and returns `None` instead of
+  letting it propagate — logging which service failed and why. Both
+  `DatabaseClient` and `R2Client` additionally degrade *internally*
+  (`self.client = None` when required env vars are missing, or when the
+  underlying SDK construction itself raises), which is what lets their
+  existing per-method `try/except` blocks (already written to survive a
+  transient outage) handle "never configured" for free, with no extra
+  guard needed at each of the ~50 call sites in `main.py` that use them.
+  The one place this matters most is Vercel: a serverless function that
+  raises at *import* time takes down every route in the deployment,
+  including routes that don't need the failed client (like the static
+  dashboard) — not just the request that would have used it. `/status`
+  (see [API_SPEC.md](API_SPEC.md#get-status)) is how you find out a
+  client failed to init; the app itself stays up either way.
 
 ## Request flow: a brainstorm call
 
@@ -77,8 +92,9 @@
 
 ## What changes in later phases
 
-- **Phase 1**: `BrainstormAgent` calls Replicate for real; `CoderAgent` and
-  `TestAgent` are added following the same `BaseAgent` pattern.
+- **Phase 1** (done): all six agents call Replicate for real.
+- **Phase 2+**: Connectors/MCP beyond Dropbox and GitHub (Google Drive,
+  Slack), fine-tuning.
 - **Phase 4**: agents gain a local-first mode — call a home server running
   Ollama first, fall back to Replicate if it's unreachable.
 

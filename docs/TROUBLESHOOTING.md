@@ -19,14 +19,17 @@ Delete `.env` and run `make setup` again to reconfigure.
 Run commands from the repo root (not from inside `src/`), and make sure the
 virtualenv is activated: `source venv/bin/activate`.
 
-**`ValueError: SUPABASE_URL and SUPABASE_KEY are required`**
-Your `.env` is missing (or still has placeholder values for) the Supabase
-credentials. See [GETTING_STARTED.md](GETTING_STARTED.md) Step 1B.
-
 **`/status` shows `"database": "unavailable"` or `"storage": "unavailable"`**
-The app started fine, but a credential is wrong (not just missing — a
-malformed URL or an invalid key). Run `make verify` for a clearer,
-per-service error message than `/status` gives.
+Either a credential is missing from `.env` (see
+[GETTING_STARTED.md](GETTING_STARTED.md) Step 1B), or it's set but wrong —
+a malformed URL or an invalid key. The app itself still starts and every
+other route still works either way: `DatabaseClient` and `R2Client` log
+the failure and degrade to a client that reports unhealthy instead of
+raising, so one bad credential can't take down the whole process (this
+matters most on Vercel, where a construction-time exception used to crash
+every route, including static ones, not just the ones that needed that
+client). Run `make verify` for a clearer, per-service error message than
+`/status` gives.
 
 **`/status` shows `"replicate": "unavailable"`**
 `REPLICATE_API_KEY` isn't set in `.env`.

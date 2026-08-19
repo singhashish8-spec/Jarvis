@@ -4,19 +4,20 @@ The dashboard has a Settings panel (gear icon at the bottom of the sidebar) with
 categories. Every field in it has an (i) icon — click it for a note on what the setting does,
 how it takes effect, and whether it costs Replicate tokens/compute.
 
-**Look**: the panel uses a dense, keyboard-first "Command Deck" style — monochrome surfaces
-plus a single violet accent, thin borders, tabular numbers — rather than a generic card-heavy
-SaaS look. Two pieces worth knowing about:
+**Look**: the whole app (not just Settings) runs on a neutral, brand-agnostic design system —
+plain solid surfaces, no OS-specific chrome, a single user-chosen accent hue driving every
+highlight — defined as CSS custom properties on `:root`/`:root[data-theme]` in
+[dashboard.html](../src/static/dashboard.html) (search for `Design tokens (Calm Neutral)`). Two
+pieces worth knowing about:
 
 - **Jump to a setting** — the search bar under the header title (`Ctrl`/`Cmd`+`K` while Settings
   is open focuses it) filters the current category's fields, connector cards, status rows,
   skills, and tasks by matching visible text. It's a local DOM filter, not a search index — it
   only searches what's already rendered in the category you're on.
-- **Settings theme** (Appearance category) — a Dark/Bright toggle scoped to the Settings panel
-  itself, saved in `localStorage` (`jarvisSettingsTheme`). It re-themes every category via CSS
-  custom properties (`--sd-*`, defined on `.settings-modal` in
-  [dashboard.html](../src/static/dashboard.html)), but doesn't touch the rest of the dashboard —
-  chat and the sidebar stay dark-mode only, same as before.
+- **App theme** (Appearance category) — a Dark/Light toggle that switches the *entire app* —
+  chat, sidebar, and Settings alike — by setting `data-theme` on `<html>`, saved in
+  `localStorage` (`jarvisSettingsTheme`). Unlike the old per-modal toggle this used to be, chat
+  and the sidebar now follow it too.
 
 This doc is the same information in one place, plus the API endpoints behind each category
 (see [API_SPEC.md](API_SPEC.md) for full request/response shapes) and what's needed for each
@@ -123,14 +124,25 @@ None of this touches Replicate — it's all local storage or database housekeepi
 
 ## Appearance
 
-- **Settings theme** — Dark/Bright toggle for the Settings panel itself (see above). Saved in
-  `localStorage` (`jarvisSettingsTheme`), applied on open via `applySettingsTheme()`.
+- **App theme** — Dark/Light toggle for the whole app (see above). Saved in `localStorage`
+  (`jarvisSettingsTheme`), applied via `applySettingsTheme()`, which sets `data-theme` on
+  `<html>` and re-derives the accent below for the new theme's contrast.
+- **Accent color** — a single hue slider (0-360). Saturation and lightness are fixed by Jarvis
+  per theme so any pick stays legible, and the text color drawn on top of the accent (e.g. the
+  primary button's label) is chosen automatically via a WCAG contrast check
+  (`textOnAccent()` in dashboard.html) rather than being fixed to always-white or always-black.
+  Drives every accent throughout the app — primary buttons, the active-chat highlight, focus
+  rings — computed once in `applyAccent()` and written out as CSS custom properties (`--accent`,
+  `--accent-strong`, `--accent-text-on`, `--active-bg`). Saved in `localStorage`
+  (`jarvisAccentHue`).
+- **Ambient wash** — a second slider (0-100%) controlling a faint accent-tinted radial gradient
+  behind the whole page, purely decorative. `0` turns it off entirely. Saved in `localStorage`
+  (`jarvisWashPct`).
 - **Compact messages** — tightens spacing between chat messages, saved in `localStorage`
   (`jarvisCompactMode`).
 
-Both are client-side only, cost nothing, and only the theme toggle is scoped to the modal — the
-rest of the dashboard (chat, sidebar) stays dark-mode only for now; a full app-wide light theme
-would be a separate, larger change.
+All four are client-side only (`localStorage`), cost nothing, and apply instantly without a
+page reload — including to the whole app now, not just the Settings modal.
 
 ## System Status
 
