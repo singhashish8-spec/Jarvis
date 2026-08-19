@@ -26,18 +26,22 @@ jobs:
         run: pytest tests/ -v
 
       # Deployment only runs once VERCEL_TOKEN/PROJECT_ID/ORG_ID are added
-      # under Settings -> Secrets -> Actions. Until then this step is
-      # skipped rather than failing the whole workflow.
+      # under Settings -> Secrets -> Actions. Until then this step logs a
+      # notice and exits cleanly instead of failing the whole workflow.
+      # (The check has to live in the `run:` shell, not an `if:` on
+      # `secrets.*` — GitHub Actions rejects the `secrets` context inside
+      # step-level `if:` expressions with "Unrecognized named-value:
+      # 'secrets'", which was silently failing this entire workflow with
+      # zero jobs ever running, on every push to main.)
       - name: Deploy to Vercel
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
         run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "VERCEL_TOKEN not configured yet — skipping deploy. Add it under Settings > Secrets > Actions."
+            exit 0
+          fi
           npm install -g vercel
           vercel --prod --token "$VERCEL_TOKEN"
-
-      - name: Skip notice
-        if: ${{ secrets.VERCEL_TOKEN == '' }}
-        run: echo "VERCEL_TOKEN not configured yet — skipping deploy. Add it under Settings > Secrets > Actions."
