@@ -1134,6 +1134,11 @@
   }
   .settings-nav-group.danger .settings-nav-group-label,
   .settings-nav-group.danger .settings-nav-item { color: var(--sd-warn); }
+  .settings-nav-loading {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: var(--sd-dimmer);
+  }
   .settings-content {
     flex: 1;
     overflow-y: auto;
@@ -2383,6 +2388,11 @@ function fieldsFor(categoryId) {
 async function openSettings(category) {
   document.getElementById("settings-backdrop").classList.add("show");
   if (!settingsState.settings.length) {
+    // A cold Vercel function + cold Supabase connection can take several
+    // seconds on the very first request — without this, the nav area (no
+    // spinner, no skeleton) just looked broken/empty for that whole stretch.
+    document.getElementById("settings-nav").innerHTML =
+      '<div class="settings-nav-loading">Loading settings…</div>';
     await loadSettingsSchema();
   }
   renderSettingsNav();
